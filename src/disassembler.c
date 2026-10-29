@@ -21,11 +21,11 @@ unsigned char *read_file_bytes(const char *filename, size_t *fsize_addr) { //? R
 }
 
 int disassemble_i8080_instruction(unsigned char *codebuffer, int pc) { //? codebuffer - a pointer to the ROM; pc - program counter
-    unsigned char *cur_instr_addr = &codebuffer[pc]; //? Address of the current instruction
+    unsigned char *instr_addr = &codebuffer[pc]; //? Address of the current instruction
     int instr_l = 1; //? Instruction length, 1 by default
     printf("%04x ", pc); //! Print the address instruction
 
-    switch (*cur_instr_addr) { //? All the machine code options
+    switch (*instr_addr) { //? All the machine code options
         case 0x00: printf("NOP"); break;
         case 0x01: printf("LXI B,#$%02x%02x", cur_instr_addr[2], cur_instr_addr[1]); instr_l=3; break; // this instruction is more than one byte, so we read operands and change the instr_L
         case 0x02: printf("STAX B"); break;
