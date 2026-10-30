@@ -158,14 +158,17 @@ int emulate_i8080_instruction(State8080* state) {
         case 0x3F: unimplementedInstruction(*instr_addr); break;
         case 0x40: unimplementedInstruction(*instr_addr); break;
         case 0x41: //^ MOV B,C
-            state->b = state->c;
-            break;
+            {
+                state->b = state->c;
+            } break;
         case 0x42: //^ MOV B,D
-            state->b = state->d;
-            break;
+            {
+                state->b = state->d;
+            } break;
         case 0x43: //^ MOV B,E
-            state->b = state->e;
-            break;
+            {
+                state->b = state->e;
+            } break;
         case 0x44: unimplementedInstruction(*instr_addr); break;
         case 0x45: unimplementedInstruction(*instr_addr); break;
         case 0x46: unimplementedInstruction(*instr_addr); break;
@@ -461,7 +464,7 @@ int emulate_i8080_instruction(State8080* state) {
 
                 
                 push_16bit_to_stack(state->memory, &(state->sp), combine_two_bytes(state->a, flags_layout));
-            }
+            } break;
         case 0xF6: unimplementedInstruction(*instr_addr); break;
         case 0xF7: unimplementedInstruction(*instr_addr); break;
         case 0xF8: unimplementedInstruction(*instr_addr); break;
