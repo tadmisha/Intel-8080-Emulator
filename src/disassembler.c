@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 unsigned char *read_file_bytes(const char *filename, size_t *fsize_addr) { //? Reads file bytes
     FILE *file= fopen(filename, "rb");
