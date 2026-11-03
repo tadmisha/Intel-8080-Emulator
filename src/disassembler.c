@@ -5,7 +5,6 @@ int disassemble_i8080_instruction(unsigned char *codebuffer, int pc) { //? codeb
     unsigned char *instr_addr = &codebuffer[pc]; //? Address of the current instruction
     int instr_l = 1; //? Instruction length, 1 by default
     printf("%04x ", pc); //! Print the address instruction
-
     switch (*instr_addr) { //? All the machine code options
         case 0x00: printf("NOP"); break;
         case 0x01: printf("LXI B,#$%02x%02x", instr_addr[2], instr_addr[1]); instr_l=3; break; // this instruction is more than one byte, so we read operands and change the instr_L
