@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
+#include "disassembler.h"
 
 typedef struct ConditionCodes { //? Intel 8080 flags
     uint8_t z:1; //? zero
@@ -65,6 +67,29 @@ static inline void setZSP_Flags(ConditionCodes *cc, const uint16_t result) {
     cc->p = calculate_parity(result&0xFF);
 }
 
+void initializeI8080(State8080 *state) {
+    state->memory = calloc(8192, sizeof(uint8_t));
+
+    state->a = 0x00;
+    state->b = 0x00;
+    state->c = 0x00;
+    state->d = 0x00;
+    state->e = 0x00;
+    state->h = 0x00;
+    state->l = 0x00;
+
+    state->pc = 0x0000;
+    state->sp = 0x0000;
+
+    state->cc.z = 0;
+    state->cc.s = 0;
+    state->cc.p = 0;
+    state->cc.cy = 0;
+    state->cc.ac = 0;
+
+    state->int_enable = 0;
+    state->cpu_haulted = 0;
+}
 
 void unimplementedInstruction(const unsigned char instr) {
     printf("Error: Unimplemented instruction: %02x\n", instr);
@@ -94,11 +119,17 @@ void emulate_i8080_instruction(State8080* state) {
             } break;
         case 0x04: //^ INR B
             {
-                state->b++;
+                uint16_t result = state->b+1;
+                setZSP_Flags(&(state->cc), result);
+
+                state->b=result;
             } break;
         case 0x05: //^ DCR B
             {
-                state->b--;
+                uint16_t result = state->b-1;
+                setZSP_Flags(&(state->cc), result);
+
+                state->b=result;;
             } break;
         case 0x06: //^ MVI B, D8
             {
@@ -115,7 +146,9 @@ void emulate_i8080_instruction(State8080* state) {
             break;
         case 0x09: //^ DAD B
             {
-                put_16bit_in_2_bytes(&(state->h), &(state->l), combine_two_bytes(state->h, state->l)+combine_two_bytes(state->b, state->c));
+                uint32_t result = combine_two_bytes(state->h, state->l)+combine_two_bytes(state->b, state->c);
+                put_16bit_in_2_bytes(&(state->h), &(state->l), result);
+                state->cc.cy = (result >> 16) & 1;
             } break;
         case 0x0A: //^ LDAX B
             {
@@ -127,16 +160,22 @@ void emulate_i8080_instruction(State8080* state) {
             } break;
         case 0x0C: //^ INR C
             {
-                state->c++;
+                uint16_t result = state->c+1;
+                setZSP_Flags(&(state->cc), result);
+
+                state->c=result;
             } break;
         case 0x0D: //^ DCR C
             {
-                state->c--;
+                uint16_t result = state->c-1;
+                setZSP_Flags(&(state->cc), result);
+
+                state->c=result;
             } break;
         case 0x0E: //^ MVI C,D8
             {
                 uint8_t op=get_operand(instr_addr, 1);
-                state->b=op;
+                state->c=op;
                 state->pc++;
             } break;
         case 0x0F: //^ RRC
@@ -166,11 +205,17 @@ void emulate_i8080_instruction(State8080* state) {
             } break;
         case 0x14: //^INR D
             {
-                state->d++;
+                uint16_t result = state->d+1;
+                setZSP_Flags(&(state->cc), result);
+
+                state->d=result;
             } break;
-        case 0x15: //^DCR D
+        case 0x15: //^DCR D 
             {
-                state->d--;
+                uint16_t result = state->d-1;
+                setZSP_Flags(&(state->cc), result);
+
+                state->d=result;;
             } break;
         case 0x16://^ MVI D, D8
             {
@@ -188,11 +233,34 @@ void emulate_i8080_instruction(State8080* state) {
             {
                 break;
             }
-        case 0x19: unimplementedInstruction(*instr_addr); break;
-        case 0x1A: unimplementedInstruction(*instr_addr); break;
-        case 0x1B: unimplementedInstruction(*instr_addr); break;
-        case 0x1C: unimplementedInstruction(*instr_addr); break;
-        case 0x1D: unimplementedInstruction(*instr_addr); break;
+        case 0x19: //^ DAD D
+            {
+                uint32_t result = combine_two_bytes(state->h, state->l)+combine_two_bytes(state->d, state->e);
+                put_16bit_in_2_bytes(&(state->h), &(state->l), result);
+                state->cc.cy = (result >> 16) & 1;
+            } break;
+        case 0x1A: //^ LDAX D
+            {
+                state->a = state->memory[combine_two_bytes(state->d, state->e)];
+            } break;
+        case 0x1B: //^ DCX D
+            {
+                put_16bit_in_2_bytes(&(state->d), &(state->e), combine_two_bytes(state->d, state->e)-1);
+            } break;
+        case 0x1C: //^ INR E
+            {
+                uint16_t result = state->e+1;
+                setZSP_Flags(&(state->cc), result);
+
+                state->e=result;
+            } break;
+        case 0x1D: //^ DCR E
+            {
+                uint16_t result = state->e-1;
+                setZSP_Flags(&(state->cc), result);
+
+                state->e=result;;
+            } break;
         case 0x1E: //^ MVI E, D8
             {
                 uint8_t op=get_operand(instr_addr, 1);
@@ -203,29 +271,113 @@ void emulate_i8080_instruction(State8080* state) {
             {   
                 uint8_t temp = state->cc.cy;
                 state->cc.cy = state->a&1;
-                uint8_t result = (state->a >> 1) | (temp & 0x80);
+                uint8_t result = (state->a >> 1) | (temp<<7);
 
                 state->a = result;
             } break;
-        case 0x20: unimplementedInstruction(*instr_addr); break;
-        case 0x21: unimplementedInstruction(*instr_addr); break;
-        case 0x22: unimplementedInstruction(*instr_addr); break;
-        case 0x23: unimplementedInstruction(*instr_addr); break;
-        case 0x24: unimplementedInstruction(*instr_addr); break;
-        case 0x25: unimplementedInstruction(*instr_addr); break;
+        case 0x20: //^ -
+            {
+                break;
+            }
+        case 0x21: //^ LXI H,D16
+            {
+                uint8_t op2=get_operand(instr_addr, 2);
+                uint8_t op1=get_operand(instr_addr, 1);
+                state->h=op2;
+                state->l=op1; 
+                state->pc+=2;
+            } break;
+        case 0x22: //^ SHLD adr
+            {
+                uint8_t op2=get_operand(instr_addr, 2);
+                uint8_t op1=get_operand(instr_addr, 1);
+                uint16_t addr = combine_two_bytes(op2, op1); 
+                state->memory[addr] = state->l;
+                state->memory[addr+1] = state->h;
+                state->pc+=2;
+            } break;
+        case 0x23: //^ INX H
+            {
+                put_16bit_in_2_bytes(&(state->h), &(state->l), combine_two_bytes(state->h, state->l)+1);
+            } break;
+        case 0x24: //^ INR H
+            {
+                uint16_t result = state->h+1;
+                setZSP_Flags(&(state->cc), result);
+
+                state->h=result;
+            } break;
+        case 0x25: //^ DCR H
+            {
+                uint16_t result = state->h-1;
+                setZSP_Flags(&(state->cc), result);
+
+                state->h=result;;
+            } break;
         case 0x26: //^ MVI H, D8
             {
                 uint8_t op=get_operand(instr_addr, 1);
                 state->h=op;
                 state->pc++;
             } break;
-        case 0x27: unimplementedInstruction(*instr_addr); break;
-        case 0x28: unimplementedInstruction(*instr_addr); break;
-        case 0x29: unimplementedInstruction(*instr_addr); break;
-        case 0x2A: unimplementedInstruction(*instr_addr); break;
-        case 0x2B: unimplementedInstruction(*instr_addr); break;
-        case 0x2C: unimplementedInstruction(*instr_addr); break;
-        case 0x2D: unimplementedInstruction(*instr_addr); break;
+        case 0x27: //^ DAA
+            {
+                uint8_t lower_4bits = (state->a) & 0x0F;
+                uint8_t higher_4bits = (state->a)>>4;
+                
+                uint8_t correction = 0;
+                if (lower_4bits>9 || state->cc.ac) {
+                    correction += 0x06;
+                }
+
+                if (higher_4bits>9 || state->cc.cy) {
+                    correction += 0x60;
+                }
+
+                uint16_t result = state->a+correction;
+                setZSP_Flags(&(state->cc), result);
+                state->cc.cy = (result >> 8) != 0;
+                //! Imagine AC is implemented here
+
+                state->a = result & 0xFF;
+            }
+        case 0x28: //^ -
+            {
+                break;
+            }
+        case 0x29: //^ DAD H
+            {
+                uint32_t result = combine_two_bytes(state->h, state->l)+combine_two_bytes(state->h, state->l);
+                put_16bit_in_2_bytes(&(state->h), &(state->l), result);
+                state->cc.cy = (result >> 16) & 1;
+            } break;
+        case 0x2A: //^ LHLD adr
+            {
+                uint8_t op2=get_operand(instr_addr, 2);
+                uint8_t op1=get_operand(instr_addr, 1);
+                uint16_t addr = combine_two_bytes(op2, op1); 
+                state->l = state->memory[addr];
+                state->h = state->memory[addr+1];
+                state->pc+=2;
+            } break;
+        case 0x2B: //^ DCX H
+            {
+                put_16bit_in_2_bytes(&(state->h), &(state->l), combine_two_bytes(state->h, state->l)-1);
+            } break;
+        case 0x2C: //^ INR L
+            {
+                uint16_t result = state->l+1;
+                setZSP_Flags(&(state->cc), result);
+
+                state->l=result;
+            } break;
+        case 0x2D: //^ DCR L
+            {
+                uint16_t result = state->l-1;
+                setZSP_Flags(&(state->cc), result);
+
+                state->l=result;;
+            } break;
         case 0x2E: //^ MVI L, D8
             {
                 uint8_t op=get_operand(instr_addr, 1);
@@ -236,12 +388,36 @@ void emulate_i8080_instruction(State8080* state) {
             {
                 state->a = ~state->a;
             } break;
-        case 0x30: unimplementedInstruction(*instr_addr); break;
-        case 0x31: unimplementedInstruction(*instr_addr); break;
-        case 0x32: unimplementedInstruction(*instr_addr); break;
-        case 0x33: unimplementedInstruction(*instr_addr); break;
-        case 0x34: unimplementedInstruction(*instr_addr); break;
-        case 0x35: unimplementedInstruction(*instr_addr); break;
+        case 0x30: //^ -
+            {
+                break;
+            }
+        case 0x31: //^ LXI SP,D16
+            {
+                uint8_t op2=get_operand(instr_addr, 2);
+                uint8_t op1=get_operand(instr_addr, 1);
+                state->sp = combine_two_bytes(op2, op1);
+                state->pc+=2;
+            } break;
+        case 0x32: //^ STA adr
+            {
+                uint8_t op2=get_operand(instr_addr, 2);
+                uint8_t op1=get_operand(instr_addr, 1);
+                state->memory[combine_two_bytes(op2, op1)] = state->a;
+                state->pc+=2;
+            } break;
+        case 0x33: //^ INX SP
+            {
+                state->sp++;
+            } break;
+        case 0x34: //^ INR M
+            {
+                state->memory[combine_two_bytes(state->h, state->l)]++;
+            } break;
+        case 0x35: //^ DCR M
+            {
+                state->memory[combine_two_bytes(state->h, state->l)]--;
+            } break;
         case 0x36: //^ MVI M, D8
             {
                 uint8_t op=get_operand(instr_addr, 1);
@@ -258,12 +434,37 @@ void emulate_i8080_instruction(State8080* state) {
             }
         case 0x39: //^ DAD SP
             {
-                put_16bit_in_2_bytes()
+                uint32_t result = combine_two_bytes(state->h, state->l)+state->sp;
+                put_16bit_in_2_bytes(&(state->h), &(state->l), result);
+                state->cc.cy = (result >> 16) & 1;
             } break;
-        case 0x3A: unimplementedInstruction(*instr_addr); break;
-        case 0x3B: unimplementedInstruction(*instr_addr); break;
-        case 0x3C: unimplementedInstruction(*instr_addr); break;
-        case 0x3D: unimplementedInstruction(*instr_addr); break;
+        case 0x3A: //^ LDA adr
+            {
+                int8_t op1 = get_operand(instr_addr, 1);
+                int8_t op2 = get_operand(instr_addr, 2);
+
+                state->a = state->memory[combine_two_bytes(op2, op1)];
+
+                state->pc+=2;
+            } break;
+        case 0x3B: //^ DCX SP
+            {
+                state->sp--;
+            } break;
+        case 0x3C: //^ INR A
+            {
+                uint16_t result = state->a+1;
+                setZSP_Flags(&(state->cc), result);
+
+                state->a=result;
+            } break;
+        case 0x3D: //^ DCR A
+            {
+                uint16_t result = state->a-1;
+                setZSP_Flags(&(state->cc), result);
+
+                state->a=result;;
+            } break;
         case 0x3E: //^ MVI A, D8
             {
                 uint8_t op=get_operand(instr_addr, 1);
@@ -902,7 +1103,7 @@ void emulate_i8080_instruction(State8080* state) {
             } break;
         case 0xAE: //^ XRA M
             {
-                uint16_t result = state->a ^ combine_two_bytes(state->h, state->l);
+                uint16_t result = state->a ^ state->memory[combine_two_bytes(state->h, state->l)];
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
@@ -966,7 +1167,7 @@ void emulate_i8080_instruction(State8080* state) {
             } break;
         case 0xB6: //^ ORA B
             {
-                uint16_t result = state->a | combine_two_bytes(state->h, state->l);
+                uint16_t result = state->a | state->memory[combine_two_bytes(state->h, state->l)];
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
@@ -1029,8 +1230,13 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
             } break;
         case 0xC0: //^ RNZ
-            {  
+            {
+                if (!(state->cc.z)) {
+                    uint8_t *pc_h = ((uint8_t *) &(state->pc)) + 1;
+                    uint8_t *pc_l = ((uint8_t *) &(state->pc));
 
+                    pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
+                }
             } break;
         case 0xC1: //^ POP B
             {
@@ -1056,6 +1262,7 @@ void emulate_i8080_instruction(State8080* state) {
                 uint16_t op_combined = combine_two_bytes(op2, op1);
                 state->pc = op_combined;
                 state->pc--;
+            } break;
         case 0xC4: unimplementedInstruction(*instr_addr); break;
         case 0xC5: //^ PUSH B
             {
@@ -1073,7 +1280,15 @@ void emulate_i8080_instruction(State8080* state) {
                 state->pc++;
             } break;
         case 0xC7: unimplementedInstruction(*instr_addr); break;
-        case 0xC8: unimplementedInstruction(*instr_addr); break;
+        case 0xC8: //^ RZ
+            {
+                if (state->cc.z) {
+                    uint8_t *pc_h = ((uint8_t *) &(state->pc)) + 1;
+                    uint8_t *pc_l = ((uint8_t *) &(state->pc));
+
+                    pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
+                }
+            } break;
         case 0xC9: //^ RET
             {
                 uint8_t *pc_h = ((uint8_t *) &(state->pc)) + 1;
@@ -1109,14 +1324,32 @@ void emulate_i8080_instruction(State8080* state) {
         case 0xCE: unimplementedInstruction(*instr_addr); break;
         case 0xCF: unimplementedInstruction(*instr_addr); break;
         case 0xD0: unimplementedInstruction(*instr_addr); break;
-        case 0xD1: unimplementedInstruction(*instr_addr); break;
+        case 0xD1: //^ POP D
+            {
+                pop_2bytes_from_stack(state->memory, &(state->sp), &(state->d), &(state->e));
+            } break;
         case 0xD2: unimplementedInstruction(*instr_addr); break;
-        case 0xD3: unimplementedInstruction(*instr_addr); break;
+        case 0xD3: //^ OUT
+            {
+                uint8_t op = get_operand(instr_addr, 1);
+                //! SKIP
+                state->pc++;
+            } break;
         case 0xD4: unimplementedInstruction(*instr_addr); break;
-        case 0xD5: unimplementedInstruction(*instr_addr); break;
+        case 0xD5: //^ PUSH D
+            {
+                push_16bit_to_stack(state->memory, &(state->sp), combine_two_bytes(state->d, state->e));
+            } break;
         case 0xD6: unimplementedInstruction(*instr_addr); break;
         case 0xD7: unimplementedInstruction(*instr_addr); break;
-        case 0xD8: unimplementedInstruction(*instr_addr); break;
+        case 0xD8: //^ RC
+            {
+                if (state->cc.cy) {
+                    uint8_t *pc_h = ((uint8_t *) &(state->pc)) + 1;
+                    uint8_t *pc_l = ((uint8_t *) &(state->pc));
+                pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
+                }
+            } break;
         case 0xD9: unimplementedInstruction(*instr_addr); break;
         case 0xDA: unimplementedInstruction(*instr_addr); break;
         case 0xDB: unimplementedInstruction(*instr_addr); break;
@@ -1125,7 +1358,10 @@ void emulate_i8080_instruction(State8080* state) {
         case 0xDE: unimplementedInstruction(*instr_addr); break;
         case 0xDF: unimplementedInstruction(*instr_addr); break;
         case 0xE0: unimplementedInstruction(*instr_addr); break;
-        case 0xE1: unimplementedInstruction(*instr_addr); break;
+        case 0xE1: //^ POP H
+            {
+                pop_2bytes_from_stack(state->memory, &(state->sp), &(state->h), &(state->l));
+            } break;
         case 0xE2: unimplementedInstruction(*instr_addr); break;
         case 0xE3: //^ XTHL
             {   
@@ -1140,7 +1376,10 @@ void emulate_i8080_instruction(State8080* state) {
                 state->h = intermediate;
             } break;
         case 0xE4: unimplementedInstruction(*instr_addr); break;
-        case 0xE5: unimplementedInstruction(*instr_addr); break;
+        case 0xE5: //^ PUSH H
+            {
+                push_16bit_to_stack(state->memory, &(state->sp), combine_two_bytes(state->h, state->l));
+            } break;
         case 0xE6: //^ ANI
             {
                 uint8_t op = get_operand(instr_addr, 1);
@@ -1158,7 +1397,16 @@ void emulate_i8080_instruction(State8080* state) {
         case 0xE8: unimplementedInstruction(*instr_addr); break;
         case 0xE9: unimplementedInstruction(*instr_addr); break;
         case 0xEA: unimplementedInstruction(*instr_addr); break;
-        case 0xEB: unimplementedInstruction(*instr_addr); break;
+        case 0xEB: //^ XCHG
+            {
+                uint8_t temp = state->h;
+                state->h = state->d;
+                state->d = temp;
+
+                temp = state->l;
+                state->l = state->e;
+                state->e = temp;
+            } break;
         case 0xEC: unimplementedInstruction(*instr_addr); break;
         case 0xED: unimplementedInstruction(*instr_addr); break;
         case 0xEE: unimplementedInstruction(*instr_addr); break;
@@ -1190,7 +1438,15 @@ void emulate_i8080_instruction(State8080* state) {
             } break;
         case 0xF6: unimplementedInstruction(*instr_addr); break;
         case 0xF7: unimplementedInstruction(*instr_addr); break;
-        case 0xF8: unimplementedInstruction(*instr_addr); break;
+        case 0xF8: //^ RM
+            {
+                if (state->cc.s) {
+                    uint8_t *pc_h = ((uint8_t *) &(state->pc)) + 1;
+                    uint8_t *pc_l = ((uint8_t *) &(state->pc));
+
+                    pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
+                }
+            } break;
         case 0xF9: //^ SPHL
             {
                 state->sp = combine_two_bytes(state->h, state->l);
@@ -1207,7 +1463,7 @@ void emulate_i8080_instruction(State8080* state) {
             uint8_t op = get_operand(instr_addr, 1);
             uint16_t result = state->a - op;
             setZSP_Flags(&(state->cc), result);
-            state->cc.cy = (state-> a < op);
+            state->cc.cy = (state->a < op);
 
             state->pc++;
         } break;
@@ -1216,3 +1472,47 @@ void emulate_i8080_instruction(State8080* state) {
     
     state->pc++;
 }
+
+int main(int argc, char* argv[]) {
+    FILE* file = fopen(argv[1], "r");
+
+    if (file == NULL) {
+        printf("Could not open the file\n");
+        exit(1);
+    }
+
+    fseek(file, 0, SEEK_END);
+    int fsize = ftell(file);
+    rewind(file);
+
+    uint8_t *file_buffer = calloc(fsize+2, sizeof(unsigned char));
+
+    fread(file_buffer, sizeof(uint8_t), fsize, file);
+
+    State8080 state;
+
+    initializeI8080(&state);
+
+    memcpy(state.memory, file_buffer, fsize);
+
+    free(file_buffer);
+
+    int i=0;
+    while (1) {
+        //printf("N%06d\n\nREGISTERS:\na – %04x\nb – %04x\nc – %04x\nd – %04x\ne – %04x\nh – %04x\nl – %04x\n\nFLAGS:\nz – %d\ns – %d\np – %d\nc – %d\nLocation (PC) – %04x\n", i, state.a, state.b, state.c, state.d, state.e, state.h, state.l, state.cc.z, state.cc.s, state.cc.p, state.cc.cy, state.pc);
+        disassemble_i8080_instruction(state.memory, state.pc);
+        //printf(" – ");
+        
+        emulate_i8080_instruction(&state);
+
+        //printf("aaa \n");
+        //∂printf("\n\n\n");
+
+        i++;
+    }
+    
+    free(state.memory);
+} 
+
+
+
