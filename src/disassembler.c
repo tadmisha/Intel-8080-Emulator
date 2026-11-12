@@ -1,5 +1,6 @@
-#include <stdio.h>
 #include "disassembler.h"
+
+#include <stdio.h>
 
 int disassemble_i8080_instruction(unsigned char *codebuffer, int pc) { //? codebuffer - a pointer to the ROM; pc - program counter
     unsigned char *instr_addr = &codebuffer[pc]; //? Address of the current instruction

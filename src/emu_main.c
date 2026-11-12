@@ -88,7 +88,7 @@ int main(int argc, char* argv[]) { //! argument 1 - filename of the binary; arg 
     free(file_buffer);
 
     int i=0;
-    while (i<=fsize) {
+    while (state.pc<=fsize) {
         printf("N%06d\n\nREGISTERS:\na – %04x\nb – %04x\nc – %04x\nd – %04x\ne – %04x\nh – %04x\nl – %04x\n\nFLAGS:\nz – %d\ns – %d\np – %d\nc – %d\nLocation (PC) – %04x\n", i, state.a, state.b, state.c, state.d, state.e, state.h, state.l, state.cc.z, state.cc.s, state.cc.p, state.cc.cy, state.pc);
         disassemble_i8080_instruction(state.memory, state.pc);
         //printf(" – ");
