@@ -6,7 +6,7 @@
 #include <string.h>
 
 void initializeI8080(State8080 *state) {
-    state->memory = calloc(64*1024, sizeof(uint8_t));
+    state->memory = calloc(64*1024+1, sizeof(uint8_t)); //* 64KB memory + 1 additional byte to store interrupt operand when working with it, the additional byte is not a part of memory, used for emulation purposes
 
     state->a = 0x00;
     state->b = 0x00;
@@ -17,7 +17,7 @@ void initializeI8080(State8080 *state) {
     state->l = 0x00;
 
     state->pc = 0x0000;
-    state->sp = 0x0000;
+    state->sp = 0xEFFF; //* Unedfined on startup on a real chip, so I take the middle ground because 0 or FFFF can cause errored when sp pushed/popped in a bad binary
 
     state->cc.z = 0;
     state->cc.s = 0;
@@ -25,7 +25,10 @@ void initializeI8080(State8080 *state) {
     state->cc.cy = 0;
     state->cc.ac = 0;
 
-    state->int_enable = 0;
+    state->interrupt_bus.interrupt_enabled = 0;
+    state->interrupt_bus.did_interrupt = 0;
+    state->interrupt_bus.interrupt_operand = 0x00;
+
     state->cpu_haulted = 0;
 
     memset(&state->io_bus, 0, sizeof(state->io_bus));
@@ -37,7 +40,23 @@ void unimplementedInstruction(const unsigned char instr) {
 }
 
 void emulate_i8080_instruction(State8080* state) {
-    uint8_t *instr_addr = state->memory + state->pc;
+    uint8_t *instr_addr;
+    instr_addr = state->memory + state->pc;
+
+    if (state->cpu_haulted && !(state->interrupt_bus.did_interrupt && state->interrupt_bus.interrupt_enabled)) { //* Interrupt is the only way to unhault a running CPU
+        return;
+    }
+
+    if (state->interrupt_bus.did_interrupt && state->interrupt_bus.interrupt_enabled) {
+        state->memory[0x10000] = state->interrupt_bus.interrupt_operand;
+        instr_addr = state->memory + 0x10000; //* 0x10000 is an additional byte specifically for interrupts and is not the part of the actual memory (which is 64KB)
+        //* There are no issues with operands trying to be fetched but failing, because interrupt-provided instructions are 1 byte (do not have operands)
+
+        state->pc--;
+        state->interrupt_bus.did_interrupt = 0;
+
+        state->cpu_haulted = 0; //* Interrupt is the only way to unhault a running CPU
+    }
 
     switch (*instr_addr) {
         case 0x00: break; //^ NOP
@@ -1281,7 +1300,15 @@ void emulate_i8080_instruction(State8080* state) {
                 state->pc++;
             } break;
         case 0xCF: unimplementedInstruction(*instr_addr); break;
-        case 0xD0: unimplementedInstruction(*instr_addr); break;
+        case 0xD0: //^ RNC
+            {
+                if (!(state->cc.cy)) {
+                    uint8_t *pc_h = ((uint8_t *) &(state->pc)) + 1;
+                    uint8_t *pc_l = ((uint8_t *) &(state->pc));
+
+                    pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
+                }
+            }
         case 0xD1: //^ POP D
             {
                 pop_2bytes_from_stack(state->memory, &(state->sp), &(state->d), &(state->e));
@@ -1461,7 +1488,7 @@ void emulate_i8080_instruction(State8080* state) {
             } break;
         case 0xF3: //^ DI
             {
-                state->int_enable=0;
+                state->interrupt_bus.interrupt_enabled=0;
             } break;
         case 0xF4: unimplementedInstruction(*instr_addr); break;
         case 0xF5: //^ PUSH PSW
@@ -1500,7 +1527,7 @@ void emulate_i8080_instruction(State8080* state) {
             } break;
         case 0xFB: //^ EI
             {
-                state->int_enable=1;
+                state->interrupt_bus.interrupt_enabled=1;
             } break;
         case 0xFC: unimplementedInstruction(*instr_addr); break;
         case 0xFD: unimplementedInstruction(*instr_addr); break;

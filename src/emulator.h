@@ -25,6 +25,12 @@ typedef struct IO_Bus { //? The collection of ports with the logic that enables 
     uint8_t used_port_id; //? id of the port that sth has inputted/outputed in
 } IO_Bus;
 
+typedef struct Interrupt_Bus {
+    uint8_t interrupt_enabled;
+    uint8_t did_interrupt;
+    uint8_t interrupt_operand;
+} Interrupt_Bus;
+
 typedef struct State8080 { //? Registers + address of the memory + flags + interrupt enabled/disabled
     uint8_t a;
     uint8_t b;
@@ -37,9 +43,9 @@ typedef struct State8080 { //? Registers + address of the memory + flags + inter
     uint16_t pc;
     uint8_t *memory;
     struct ConditionCodes cc;
-    uint8_t int_enable;
-    uint8_t cpu_haulted;
+    struct Interrupt_Bus interrupt_bus;
     struct IO_Bus io_bus;
+    uint8_t cpu_haulted;
 } State8080;
 
 static inline uint8_t calculate_parity(uint8_t num) { //? Calculate Parity
