@@ -13,6 +13,18 @@ typedef struct ConditionCodes { //? Intel 8080 flags
     uint8_t pad:3;
 } ConditionCodes;
 
+typedef struct IO_Port { //? An IO port storage
+    uint8_t inputed_data;
+    uint8_t outputed_data;
+} IO_Port;
+
+typedef struct IO_Bus { //? The collection of ports with the logic that enables connecting the CPU emulator to the rest of the emulated machine
+    struct IO_Port io_ports[256]; //? Ports
+    uint8_t did_read; //? boolean flag for when sth is inputted
+    uint8_t did_write; //? boolean flag for when sth is outputed
+    uint8_t used_port_id; //? id of the port that sth has inputted/outputed in
+} IO_Bus;
+
 typedef struct State8080 { //? Registers + address of the memory + flags + interrupt enabled/disabled
     uint8_t a;
     uint8_t b;
@@ -27,6 +39,7 @@ typedef struct State8080 { //? Registers + address of the memory + flags + inter
     struct ConditionCodes cc;
     uint8_t int_enable;
     uint8_t cpu_haulted;
+    struct IO_Bus io_bus;
 } State8080;
 
 static inline uint8_t calculate_parity(uint8_t num) { //? Calculate Parity

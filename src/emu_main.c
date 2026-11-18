@@ -47,7 +47,7 @@ uint16_t string_to_hex(char *string) {
     return hexademical;
 }
 
-int main(int argc, char* argv[]) { //! argument 1 - filename of the binary; arg 2 - address in ram where to load the program to. 0 by default
+int main(int argc, char* argv[]) { //! arg 1 - filename of the binary; arg 2 - address in ram where to load the program to. 0 by default
     uint16_t load_program_addr; //? Ram address to load the program in
     
     if (argc == 1) {
@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) { //! argument 1 - filename of the binary; arg 
     }
 
     else if (argc == 2) {
-        printf("The address in ram to load the program chosen 0 by default.");
+        printf("The address in ram to load the program chosen 0 by default.\n\n\n\n\n");
         load_program_addr = 0;
     }
 
@@ -91,12 +91,8 @@ int main(int argc, char* argv[]) { //! argument 1 - filename of the binary; arg 
     while (state.pc<=fsize) {
         printf("N%06d\n\nREGISTERS:\na – %04x\nb – %04x\nc – %04x\nd – %04x\ne – %04x\nh – %04x\nl – %04x\n\nFLAGS:\nz – %d\ns – %d\np – %d\nc – %d\nLocation (PC) – %04x\n", i, state.a, state.b, state.c, state.d, state.e, state.h, state.l, state.cc.z, state.cc.s, state.cc.p, state.cc.cy, state.pc);
         disassemble_i8080_instruction(state.memory, state.pc);
-        //printf(" – ");
         
         emulate_i8080_instruction(&state);
-
-        //printf("aaa \n");
-        //∂printf("\n\n\n");
 
         i++;
     }
