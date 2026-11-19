@@ -86,12 +86,17 @@ static inline void setZSP_Flags(ConditionCodes *cc, const uint16_t result) { //?
     cc->p = calculate_parity(result&0xFF);
 }
 
+static inline void generateInterrupt(Interrupt_Bus *interruptBus, uint8_t instruction) {
+    interruptBus->did_interrupt = 1;
+    interruptBus->interrupt_operand = instruction;
+}
+
 void initializeI8080(State8080 **state_ptr); //? Set up the initial state of the CPU
 
 void unimplementedInstruction(const unsigned char instr); //? Gets called when an instruction is not implemented in the emulator
 
 void emulate_i8080_instruction(State8080* state); //? Responsible for emulating each separate instruction
 
-void emulation_handler(State8080* state); //? Basic emulation loop
+void cpu_emulation_handler(State8080* state); //? Basic emulation loop
 
 #endif

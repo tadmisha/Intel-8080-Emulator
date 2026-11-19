@@ -60,6 +60,7 @@ void emulate_i8080_instruction(State8080* state) {
 
         state->pc--;
         state->interrupt_bus.did_interrupt = 0;
+        state->interrupt_bus.interrupt_enabled = 0;
 
         state->cpu_haulted = 0; //* Interrupt is the only way to unhault a running CPU
     }
@@ -1204,8 +1205,8 @@ void emulate_i8080_instruction(State8080* state) {
         case 0xC0: //^ RNZ
             {
                 if (!(state->cc.z)) {
-                    uint8_t *pc_h = ((uint8_t *) &(state->pc)) + 1;
                     uint8_t *pc_l = ((uint8_t *) &(state->pc));
+                    uint8_t *pc_h = pc_l+1;
 
                     pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
                 }
@@ -1255,16 +1256,16 @@ void emulate_i8080_instruction(State8080* state) {
         case 0xC8: //^ RZ
             {
                 if (state->cc.z) {
-                    uint8_t *pc_h = ((uint8_t *) &(state->pc)) + 1;
                     uint8_t *pc_l = ((uint8_t *) &(state->pc));
+                    uint8_t *pc_h = pc_l+1;
 
                     pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
                 }
             } break;
         case 0xC9: //^ RET
             {
-                uint8_t *pc_h = ((uint8_t *) &(state->pc));
                 uint8_t *pc_l = ((uint8_t *) &(state->pc));
+                uint8_t *pc_h = pc_l+1;
 
                 pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
             } break;
@@ -1309,12 +1310,12 @@ void emulate_i8080_instruction(State8080* state) {
         case 0xD0: //^ RNC
             {
                 if (!(state->cc.cy)) {
-                    uint8_t *pc_h = ((uint8_t *) &(state->pc)) + 1;
                     uint8_t *pc_l = ((uint8_t *) &(state->pc));
+                    uint8_t *pc_h = pc_l+1;
 
                     pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
                 }
-            }
+            } break;
         case 0xD1: //^ POP D
             {
                 pop_2bytes_from_stack(state->memory, &(state->sp), &(state->d), &(state->e));
@@ -1336,6 +1337,8 @@ void emulate_i8080_instruction(State8080* state) {
             {   
                 uint8_t op = get_operand(instr_addr, 1);
                 state->io_bus.io_ports[op].inputed_data = state->a;
+
+                state->pc++;
             } break;
         case 0xD4: unimplementedInstruction(*instr_addr); break;
         case 0xD5: //^ PUSH D
@@ -1358,8 +1361,8 @@ void emulate_i8080_instruction(State8080* state) {
         case 0xD8: //^ RC
             {
                 if (state->cc.cy) {
-                    uint8_t *pc_h = ((uint8_t *) &(state->pc)) + 1;
                     uint8_t *pc_l = ((uint8_t *) &(state->pc));
+                    uint8_t *pc_h = pc_l+1;
                 pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
                 }
             } break;
@@ -1503,13 +1506,23 @@ void emulate_i8080_instruction(State8080* state) {
                 
                 push_16bit_to_stack(state->memory, &(state->sp), combine_two_bytes(state->a, flags_layout));
             } break;
-        case 0xF6: unimplementedInstruction(*instr_addr); break;
+        case 0xF6://^ ORI D8
+            {
+                uint8_t op = get_operand(instr_addr, 1);
+                uint16_t result = state->a | op;
+                setZSP_Flags(&(state->cc), result);
+                state->cc.cy = 0;
+
+                state->a = result;
+
+                state->pc++;
+            } break;
         case 0xF7: unimplementedInstruction(*instr_addr); break;
         case 0xF8: //^ RM
             {
                 if (state->cc.s) {
-                    uint8_t *pc_h = ((uint8_t *) &(state->pc)) + 1;
                     uint8_t *pc_l = ((uint8_t *) &(state->pc));
+                    uint8_t *pc_h = pc_l+1;
 
                     pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
                 }
@@ -1558,9 +1571,6 @@ void emulate_i8080_instruction(State8080* state) {
     
     state->pc++;
 }
-void emulation_handler(State8080* state) {
-    printf("\nREGISTERS:\na – %04x\nb – %04x\nc – %04x\nd – %04x\ne – %04x\nh – %04x\nl – %04x\n\nFLAGS:\nz – %d\ns – %d\np – %d\nc – %d\nLocation (PC) – %04x\n", state->a, state->b, state->c, state->d, state->e, state->h, state->l, state->cc.z, state->cc.s, state->cc.p, state->cc.cy, state->pc);
-    disassemble_i8080_instruction(state->memory, state->pc);
-    
+void cpu_emulation_handler(State8080* state) {
     emulate_i8080_instruction(state);
 }
