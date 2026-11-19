@@ -1,11 +1,16 @@
 #include "emulator.h"
+#include "disassembler.h"
 
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-void initializeI8080(State8080 *state) {
+void initializeI8080(State8080 **state_ptr) {
+    *state_ptr = malloc(sizeof(State8080));
+
+    State8080 *state = *state_ptr;
+
     state->memory = calloc(64*1024+1, sizeof(uint8_t)); //* 64KB memory + 1 additional byte to store interrupt operand when working with it, the additional byte is not a part of memory, used for emulation purposes
 
     state->a = 0x00;
@@ -40,6 +45,7 @@ void unimplementedInstruction(const unsigned char instr) {
 }
 
 void emulate_i8080_instruction(State8080* state) {
+
     uint8_t *instr_addr;
     instr_addr = state->memory + state->pc;
 
@@ -1551,4 +1557,10 @@ void emulate_i8080_instruction(State8080* state) {
     }
     
     state->pc++;
+}
+void emulation_handler(State8080* state) {
+    printf("\nREGISTERS:\na – %04x\nb – %04x\nc – %04x\nd – %04x\ne – %04x\nh – %04x\nl – %04x\n\nFLAGS:\nz – %d\ns – %d\np – %d\nc – %d\nLocation (PC) – %04x\n", state->a, state->b, state->c, state->d, state->e, state->h, state->l, state->cc.z, state->cc.s, state->cc.p, state->cc.cy, state->pc);
+    disassemble_i8080_instruction(state->memory, state->pc);
+    
+    emulate_i8080_instruction(state);
 }

@@ -47,7 +47,28 @@ uint16_t string_to_hex(char *string) {
     return hexademical;
 }
 
-int main(int argc, char* argv[]) { //! arg 1 - filename of the binary; arg 2 - address in ram where to load the program to. 0 by default
+int read_binary_file(const char *file_name, uint8_t **file_buffer) { //? Reads file into file_buffer, return file size
+    FILE* file = fopen(file_name, "rb");
+
+    if (file == NULL) {
+        printf("Could not open the file\n");
+        exit(1);
+    }
+
+    fseek(file, 0, SEEK_END);
+    int fsize = ftell(file);
+    rewind(file);
+
+    *file_buffer = calloc(fsize+2, sizeof(unsigned char));
+
+    fread(*file_buffer, sizeof(uint8_t), fsize, file);
+
+    return fsize;
+}
+
+
+int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - address in ram where to load the program to. 0 by default
+    //! Argument handling
     uint16_t load_program_addr; //? Ram address to load the program in
     
     if (argc == 1) {
@@ -63,41 +84,28 @@ int main(int argc, char* argv[]) { //! arg 1 - filename of the binary; arg 2 - a
     else if (argc == 3) {
         load_program_addr = string_to_hex(argv[2]);
     }
+    //! ---
 
-    FILE* file = fopen(argv[1], "rb");
+    //! File reading 
+    uint8_t *binary_file_buffer;
+    int fsize = read_binary_file(argv[1], &binary_file_buffer);
 
-    if (file == NULL) {
-        printf("Could not open the file\n");
-        exit(1);
-    }
-
-    fseek(file, 0, SEEK_END);
-    int fsize = ftell(file);
-    rewind(file);
-
-    uint8_t *file_buffer = calloc(fsize+2, sizeof(unsigned char));
-
-    fread(file_buffer, sizeof(uint8_t), fsize, file);
-
-    State8080 state;
-
+    State8080 *state;
     initializeI8080(&state);
 
-    memcpy(&state.memory[load_program_addr], file_buffer, fsize);
-
-    free(file_buffer);
+    memcpy(state->memory+load_program_addr, binary_file_buffer, fsize); //? Loads the binary into the state memory
+    free(binary_file_buffer);
+    //! ---
 
     int i=0;
-    while (state.pc<=fsize) {
-        printf("N%06d\n\nREGISTERS:\na – %04x\nb – %04x\nc – %04x\nd – %04x\ne – %04x\nh – %04x\nl – %04x\n\nFLAGS:\nz – %d\ns – %d\np – %d\nc – %d\nLocation (PC) – %04x\n", i, state.a, state.b, state.c, state.d, state.e, state.h, state.l, state.cc.z, state.cc.s, state.cc.p, state.cc.cy, state.pc);
-        disassemble_i8080_instruction(state.memory, state.pc);
-        
-        emulate_i8080_instruction(&state);
+    while (state->pc<=fsize) {
+        printf("N%06d\n", i);
+        emulation_handler(state);
 
         i++;
     }
     
-    free(state.memory);
+    free(state->memory);
 } 
 
 
