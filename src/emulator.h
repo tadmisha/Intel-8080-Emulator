@@ -95,8 +95,8 @@ void initializeI8080(State8080 **state_ptr); //? Set up the initial state of the
 
 void unimplementedInstruction(const unsigned char instr); //? Gets called when an instruction is not implemented in the emulator
 
-void emulate_i8080_instruction(State8080* state); //? Responsible for emulating each separate instruction
+unsigned int emulate_i8080_instruction(State8080* state); //? Responsible for emulating each separate instruction
 
-void cpu_emulation_handler(State8080* state); //? Basic emulation loop
+void cpu_emulation_handler(State8080* state, unsigned long long *overall_clock_cycles); //? Basic emulation loop
 
 #endif

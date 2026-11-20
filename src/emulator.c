@@ -44,13 +44,12 @@ void unimplementedInstruction(const unsigned char instr) {
     exit(1);
 }
 
-void emulate_i8080_instruction(State8080* state) {
-
+unsigned int emulate_i8080_instruction(State8080* state) {
     uint8_t *instr_addr;
     instr_addr = state->memory + state->pc;
 
     if (state->cpu_haulted && !(state->interrupt_bus.did_interrupt && state->interrupt_bus.interrupt_enabled)) { //* Interrupt is the only way to unhault a running CPU
-        return;
+        return 4;
     }
 
     if (state->interrupt_bus.did_interrupt && state->interrupt_bus.interrupt_enabled) {
@@ -65,8 +64,13 @@ void emulate_i8080_instruction(State8080* state) {
         state->cpu_haulted = 0; //* Interrupt is the only way to unhault a running CPU
     }
 
+    unsigned int clock_cycles = 0;
+
     switch (*instr_addr) {
-        case 0x00: break; //^ NOP
+        case 0x00: //^ NOP
+        {
+            clock_cycles=4;
+        } break;
         case 0x01: //^ LXI B,D16
             {
                 uint8_t op2=get_operand(instr_addr, 2);
@@ -74,14 +78,20 @@ void emulate_i8080_instruction(State8080* state) {
                 state->b=op2;
                 state->c=op1; 
                 state->pc+=2;
+
+                clock_cycles=10;
             } break;
         case 0x02: //^ STAX B
             {
                 state->memory[combine_two_bytes(state->b, state->c)] = state->a;
+
+                clock_cycles=7;
             } break;
-        case 0x03: //^INX B 
+        case 0x03: //^ INX B 
             {
-                put_16bit_in_2_bytes(&(state->b), &(state->c), combine_two_bytes(state->b, state->c)+1);
+                put_16bit_in_2_bytes(&(state->b), &(state->c), combine_two_bytes(state->b, state->c)+1); 
+
+                clock_cycles=5;               
             } break;
         case 0x04: //^ INR B
             {
@@ -89,40 +99,56 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
 
                 state->b=result;
+
+                clock_cycles=5;
             } break;
         case 0x05: //^ DCR B
             {
                 uint16_t result = state->b-1;
                 setZSP_Flags(&(state->cc), result);
 
-                state->b=result;;
+                state->b=result;
+
+                clock_cycles=5;
             } break;
         case 0x06: //^ MVI B, D8
             {
                 uint8_t op=get_operand(instr_addr, 1);
                 state->b=op;
                 state->pc++;
+
+                clock_cycles=7;
             } break;
         case 0x07: //^ RLC
             {
                 state->cc.cy = state->a>>7;
                 state->a = state->a<<1 | state->cc.cy;
+
+                clock_cycles=4;
             } break;
         case 0x08: //^ -
-            break;
+            {
+                clock_cycles=4;
+            } break;
         case 0x09: //^ DAD B
             {
                 uint32_t result = combine_two_bytes(state->h, state->l)+combine_two_bytes(state->b, state->c);
                 put_16bit_in_2_bytes(&(state->h), &(state->l), result);
                 state->cc.cy = (result >> 16) & 1;
+
+                clock_cycles=10;
             } break;
         case 0x0A: //^ LDAX B
             {
                 state->a = state->memory[combine_two_bytes(state->b, state->c)];
+
+                clock_cycles=7;
             } break;
         case 0x0B: //^ DCX B
             {
                 put_16bit_in_2_bytes(&(state->b), &(state->c), combine_two_bytes(state->b, state->c)-1);
+
+                clock_cycles=5;
             } break;
         case 0x0C: //^ INR C
             {
@@ -130,6 +156,8 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
 
                 state->c=result;
+
+                clock_cycles=5;
             } break;
         case 0x0D: //^ DCR C
             {
@@ -137,12 +165,16 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
 
                 state->c=result;
+
+                clock_cycles=5;
             } break;
         case 0x0E: //^ MVI C,D8
             {
                 uint8_t op=get_operand(instr_addr, 1);
                 state->c=op;
                 state->pc++;
+
+                clock_cycles=7;
             } break;
         case 0x0F: //^ RRC
             {
@@ -150,9 +182,13 @@ void emulate_i8080_instruction(State8080* state) {
                 uint8_t result = (state->a >> 1) | (state->a << 7);
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0x10: //^ -
-            break;
+            {
+                clock_cycles=4;
+            } break;
         case 0x11: //^ LXI D,D16
             {
                 uint8_t op2=get_operand(instr_addr, 2);
@@ -160,14 +196,20 @@ void emulate_i8080_instruction(State8080* state) {
                 state->d=op2;
                 state->e=op1; 
                 state->pc+=2;
+
+                clock_cycles=10;
             } break;
         case 0x12: //^ STAX D
             {
                 state->memory[combine_two_bytes(state->d, state->e)] = state->a;
+
+                clock_cycles=7;
             } break;
         case 0x13: //^INX D
             {
                 put_16bit_in_2_bytes(&(state->d), &(state->e), combine_two_bytes(state->d, state->e)+1);
+
+                clock_cycles=5;
             } break;
         case 0x14: //^INR D
             {
@@ -175,43 +217,57 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
 
                 state->d=result;
+
+                clock_cycles=5;
             } break;
         case 0x15: //^DCR D 
             {
                 uint16_t result = state->d-1;
                 setZSP_Flags(&(state->cc), result);
 
-                state->d=result;;
+                state->d=result;
+
+                clock_cycles=5;
             } break;
         case 0x16://^ MVI D, D8
             {
                 uint8_t op=get_operand(instr_addr, 1);
                 state->d=op;
                 state->pc++;
+
+                clock_cycles=7;
             } break;
         case 0x17: //^ RAL
             {   
                 uint8_t temp = state->cc.cy;
                 state->cc.cy = state->a>>7;
                 state->a = (state->a << 1) | temp;
+
+                clock_cycles=4;
             } break;
         case 0x18: //^ -
             {
-                break;
-            }
+                clock_cycles=4;
+            } break;
         case 0x19: //^ DAD D
             {
                 uint32_t result = combine_two_bytes(state->h, state->l)+combine_two_bytes(state->d, state->e);
                 put_16bit_in_2_bytes(&(state->h), &(state->l), result);
                 state->cc.cy = (result >> 16) & 1;
+
+                clock_cycles=10;
             } break;
         case 0x1A: //^ LDAX D
             {
                 state->a = state->memory[combine_two_bytes(state->d, state->e)];
+
+                clock_cycles=7;
             } break;
         case 0x1B: //^ DCX D
             {
                 put_16bit_in_2_bytes(&(state->d), &(state->e), combine_two_bytes(state->d, state->e)-1);
+
+                clock_cycles=5;
             } break;
         case 0x1C: //^ INR E
             {
@@ -219,19 +275,25 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
 
                 state->e=result;
+
+                clock_cycles=5;
             } break;
         case 0x1D: //^ DCR E
             {
                 uint16_t result = state->e-1;
                 setZSP_Flags(&(state->cc), result);
 
-                state->e=result;;
+                state->e=result;
+
+                clock_cycles=5;
             } break;
         case 0x1E: //^ MVI E, D8
             {
                 uint8_t op=get_operand(instr_addr, 1);
                 state->e=op;
                 state->pc++;
+
+                clock_cycles=7;
             } break;
         case 0x1F: //^ RAR 
             {   
@@ -240,11 +302,13 @@ void emulate_i8080_instruction(State8080* state) {
                 uint8_t result = (state->a >> 1) | (temp<<7);
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0x20: //^ -
             {
-                break;
-            }
+                clock_cycles=4;
+            } break;
         case 0x21: //^ LXI H,D16
             {
                 uint8_t op2=get_operand(instr_addr, 2);
@@ -252,6 +316,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->h=op2;
                 state->l=op1; 
                 state->pc+=2;
+
+                clock_cycles=10;
             } break;
         case 0x22: //^ SHLD adr
             {
@@ -261,10 +327,14 @@ void emulate_i8080_instruction(State8080* state) {
                 state->memory[addr] = state->l;
                 state->memory[addr+1] = state->h;
                 state->pc+=2;
+
+                clock_cycles=16;
             } break;
         case 0x23: //^ INX H
             {
                 put_16bit_in_2_bytes(&(state->h), &(state->l), combine_two_bytes(state->h, state->l)+1);
+
+                clock_cycles=5;
             } break;
         case 0x24: //^ INR H
             {
@@ -272,19 +342,25 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
 
                 state->h=result;
+
+                clock_cycles=5;
             } break;
         case 0x25: //^ DCR H
             {
                 uint16_t result = state->h-1;
                 setZSP_Flags(&(state->cc), result);
 
-                state->h=result;;
+                state->h=result;
+
+                clock_cycles=5;
             } break;
         case 0x26: //^ MVI H, D8
             {
                 uint8_t op=get_operand(instr_addr, 1);
                 state->h=op;
                 state->pc++;
+
+                clock_cycles=7;
             } break;
         case 0x27: //^ DAA
             {
@@ -306,16 +382,20 @@ void emulate_i8080_instruction(State8080* state) {
                 //! Imagine AC is implemented here
 
                 state->a = result & 0xFF;
+
+                clock_cycles=4;
             } break;
         case 0x28: //^ -
             {
-                break;
-            }
+                clock_cycles=4;
+            } break;
         case 0x29: //^ DAD H
             {
                 uint32_t result = combine_two_bytes(state->h, state->l)+combine_two_bytes(state->h, state->l);
                 put_16bit_in_2_bytes(&(state->h), &(state->l), result);
                 state->cc.cy = (result >> 16) & 1;
+
+                clock_cycles=10;
             } break;
         case 0x2A: //^ LHLD adr
             {
@@ -325,10 +405,14 @@ void emulate_i8080_instruction(State8080* state) {
                 state->l = state->memory[addr];
                 state->h = state->memory[addr+1];
                 state->pc+=2;
+
+                clock_cycles=16;
             } break;
         case 0x2B: //^ DCX H
             {
                 put_16bit_in_2_bytes(&(state->h), &(state->l), combine_two_bytes(state->h, state->l)-1);
+
+                clock_cycles=5;
             } break;
         case 0x2C: //^ INR L
             {
@@ -336,34 +420,44 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
 
                 state->l=result;
+
+                clock_cycles=5;
             } break;
         case 0x2D: //^ DCR L
             {
                 uint16_t result = state->l-1;
                 setZSP_Flags(&(state->cc), result);
 
-                state->l=result;;
+                state->l=result;
+
+                clock_cycles=5;
             } break;
         case 0x2E: //^ MVI L, D8
             {
                 uint8_t op=get_operand(instr_addr, 1);
                 state->l=op;
                 state->pc++;
+
+                clock_cycles=7;
             } break;
         case 0x2F: //^ CMA
             {
                 state->a = ~state->a;
+
+                clock_cycles=4;
             } break;
         case 0x30: //^ -
             {
-                break;
-            }
+                clock_cycles=4;
+            } break;
         case 0x31: //^ LXI SP,D16
             {
                 uint8_t op2=get_operand(instr_addr, 2);
                 uint8_t op1=get_operand(instr_addr, 1);
                 state->sp = combine_two_bytes(op2, op1);
                 state->pc+=2;
+
+                clock_cycles=10;
             } break;
         case 0x32: //^ STA adr
             {
@@ -371,10 +465,14 @@ void emulate_i8080_instruction(State8080* state) {
                 uint8_t op1=get_operand(instr_addr, 1);
                 state->memory[combine_two_bytes(op2, op1)] = state->a;
                 state->pc+=2;
+
+                clock_cycles=13;
             } break;
         case 0x33: //^ INX SP
             {
                 state->sp++;
+
+                clock_cycles=5;
             } break;
         case 0x34: //^ INR M
             {
@@ -382,7 +480,8 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
 
                 state->memory[combine_two_bytes(state->h, state->l)] = result;
-                
+
+                clock_cycles=10;
             } break;
         case 0x35: //^ DCR M
             {
@@ -390,26 +489,34 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
 
                 state->memory[combine_two_bytes(state->h, state->l)] = result;
+
+                clock_cycles=10;
             } break;
         case 0x36: //^ MVI M, D8
             {
                 uint8_t op=get_operand(instr_addr, 1);
                 state->memory[combine_two_bytes(state->h, state->l)]=op;
                 state->pc++;
+
+                clock_cycles=10;
             } break;
         case 0x37: //^ STC
             {
                 state->cc.cy = 1;
+
+                clock_cycles=4;
             } break;
         case 0x38: //^ -
             {
-                break;
-            }
+                clock_cycles=4;
+            } break;
         case 0x39: //^ DAD SP
             {
                 uint32_t result = combine_two_bytes(state->h, state->l)+state->sp;
                 put_16bit_in_2_bytes(&(state->h), &(state->l), result);
                 state->cc.cy = (result >> 16) & 1;
+
+                clock_cycles=10;
             } break;
         case 0x3A: //^ LDA adr
             {
@@ -419,10 +526,14 @@ void emulate_i8080_instruction(State8080* state) {
                 state->a = state->memory[combine_two_bytes(op2, op1)];
 
                 state->pc+=2;
+
+                clock_cycles=13;
             } break;
         case 0x3B: //^ DCX SP
             {
                 state->sp--;
+
+                clock_cycles=5;
             } break;
         case 0x3C: //^ INR A
             {
@@ -430,280 +541,351 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
 
                 state->a=result;
+
+                clock_cycles=5;
             } break;
         case 0x3D: //^ DCR A
             {
                 uint16_t result = state->a-1;
                 setZSP_Flags(&(state->cc), result);
 
-                state->a=result;;
+                state->a=result;
+
+                clock_cycles=5;
             } break;
         case 0x3E: //^ MVI A, D8
             {
                 uint8_t op=get_operand(instr_addr, 1);
                 state->a=op;
                 state->pc++;
+
+                clock_cycles=7;
             } break;
         case 0x3F: //^ CMC
             {
                 state->cc.cy = !state->cc.cy;
+
+                clock_cycles=4;
             } break;
         case 0x40: //^ MOV B,B
             {
                 state->b = state->b;
+                clock_cycles=5;
             } break;
         case 0x41: //^ MOV B,C
             {
                 state->b = state->c;
+                clock_cycles=5;
             } break;
         case 0x42: //^ MOV B,D
             {
                 state->b = state->d;
+                clock_cycles=5;
             } break;
         case 0x43: //^ MOV B,E
             {
                 state->b = state->e;
+                clock_cycles=5;
             } break;
         case 0x44: //^ MOV B,H
             {
                 state->b = state->h;
+                clock_cycles=5;
             } break;
         case 0x45://^ MOV B,L
             {
                 state->b = state->l;
+                clock_cycles=5;
             } break;
         case 0x46: //^ MOV B,M
             {
-
                 state->b = state->memory[combine_two_bytes(state->h, state->l)];
+                clock_cycles=7;
             } break;
         case 0x47: //^ MOV B,A
             {
                 state->b = state->a;
+                clock_cycles=5;
             } break;
         case 0x48: //^ MOV C,B
             {
                 state->c = state->b;
+                clock_cycles=5;
             } break;
         case 0x49: //^ MOV C,C
             {
                 state->c = state->c;
+                clock_cycles=5;
             } break;
         case 0x4A: //^ MOV C,D
             {
                 state->c = state->d;
+                clock_cycles=5;
             } break;
         case 0x4B: //^ MOV C,E
             {
                 state->c = state->e;
+                clock_cycles=5;
             } break;
         case 0x4C: //^ MOV C,H
             {
                 state->c = state->h;
+                clock_cycles=5;
             } break;
         case 0x4D: //^ MOV C,L
             {
                 state->c = state->l;
+                clock_cycles=5;
             } break;
         case 0x4E: //^ MOV C,M
             {
                 state->c = state->memory[combine_two_bytes(state->h, state->l)];
+                clock_cycles=7;
             } break;
         case 0x4F: //^ MOV C,A
             {
                 state->c = state->a;
+                clock_cycles=5;
             } break;
         case 0x50: //^ MOV D,B
             {
                 state->d = state->b;
+                clock_cycles=5;
             } break;
         case 0x51: //^ MOV D,C
             {
                 state->d = state->c;
+                clock_cycles=5;
             } break;
         case 0x52: //^ MOV D,D
             {
                 state->d = state->d;
+                clock_cycles=5;
             } break;
         case 0x53: //^ MOV D,E
             {
                 state->d = state->e;
+                clock_cycles=5;
             } break;
         case 0x54: //^ MOV D,H
             {
                 state->d = state->h;
+                clock_cycles=5;
             } break;
         case 0x55: //^ MOV D,L
             {
                 state->d = state->l;
+                clock_cycles=5;
             } break;
         case 0x56: //^ MOV D,M
             {
                 state->d = state->memory[combine_two_bytes(state->h, state->l)];
+                clock_cycles=7;
             } break;
         case 0x57: //^ MOV D,A
             {
                 state->d = state->a;
+                clock_cycles=5;
             } break;
         case 0x58: //^ MOV E,B
             {
                 state->e = state->b;
+                clock_cycles=5;
             } break;
         case 0x59: //^ MOV E,C
             {
                 state->e = state->c;
+                clock_cycles=5;
             } break;
         case 0x5A: //^ MOV E,D
             {
                 state->e = state->d;
+                clock_cycles=5;
             } break;
         case 0x5B: //^ MOV E,E
             {
                 state->e = state->e;
+                clock_cycles=5;
             } break;
         case 0x5C: //^ MOV E,H
             {
                 state->e = state->h;
+                clock_cycles=5;
             } break;
         case 0x5D: //^ MOV E,L
             {
                 state->e = state->l;
+                clock_cycles=5;
             } break;
         case 0x5E: //^ MOV E,M
             {
                 state->e = state->memory[combine_two_bytes(state->h, state->l)];
+                clock_cycles=7;
             } break;
         case 0x5F: //^ MOV E,A
             {
                 state->e = state->a;
+                clock_cycles=5;
             } break;
         case 0x60: //^ MOV H,B
             {
                 state->h = state->b;
+                clock_cycles=5;
             } break;
         case 0x61: //^ MOV H,C
             {
                 state->h = state->c;
+                clock_cycles=5;
             } break;
         case 0x62://^ MOV H,D
             {
                 state->h = state->d;
+                clock_cycles=5;
             } break;
         case 0x63: //^ MOV H,E
             {
                 state->h = state->e;
+                clock_cycles=5;
             } break;
         case 0x64://^ MOV H,H
             {
                 state->h = state->h;
+                clock_cycles=5;
             } break;
         case 0x65://^ MOV H,L
             {
                 state->h = state->l;
+                clock_cycles=5;
             } break;
         case 0x66://^ MOV H,M
             {
                 state->h = state->memory[combine_two_bytes(state->h, state->l)];
+                clock_cycles=7;
             } break;
         case 0x67: //^ MOV H,A
             {
                 state->h = state->a;
+                clock_cycles=5;
             } break;
         case 0x68: //^ MOV L,B
             {
                 state->l = state->b;
+                clock_cycles=5;
             } break;
         case 0x69: //^ MOV L,C
             {
                 state->l = state->c;
+                clock_cycles=5;
             } break;
         case 0x6A: //^ MOV L,D
             {
                 state->l = state->d;
+                clock_cycles=5;
             } break;
         case 0x6B: //^ MOV L,E
             {
                 state->l = state->e;
+                clock_cycles=5;
             } break;
         case 0x6C: //^ MOV L,H
             {
                 state->l = state->h;
+                clock_cycles=5;
             } break;
         case 0x6D: //^ MOV L,L
             {
                 state->l = state->l;
+                clock_cycles=5;
             } break;
         case 0x6E: //^ MOV L,M
             {
                 state->l = state->memory[combine_two_bytes(state->h, state->l)];
+                clock_cycles=7;
             } break;
         case 0x6F: //^ MOV L,A
             {
                 state->l = state->a;
+                clock_cycles=5;
             } break;
         case 0x70: //^ MOV M,B 
             {
                 state->memory[combine_two_bytes(state->h, state->l)] = state->b;
+                clock_cycles=7;
             } break;
         case 0x71: //^ MOV M,C
             {
                 state->memory[combine_two_bytes(state->h, state->l)] = state->c;
+                clock_cycles=7;
             } break;
         case 0x72: //^ MOV M,D
             {
                 state->memory[combine_two_bytes(state->h, state->l)] = state->d;
+                clock_cycles=7;
             } break;
         case 0x73: //^ MOV M,E
             {
                 state->memory[combine_two_bytes(state->h, state->l)] = state->e;
+                clock_cycles=7;
             } break;
         case 0x74: //^ MOV M,H
             {
                 state->memory[combine_two_bytes(state->h, state->l)] = state->h;
+                clock_cycles=7;
             } break;
         case 0x75: //^ MOV M,L
             {
                 state->memory[combine_two_bytes(state->h, state->l)] = state->l;
+                clock_cycles=7;
             } break;
         case 0x76: //^ HLT
             {
                 state->cpu_haulted=1;
+                clock_cycles=7;
             } break;
         case 0x77: //^ MOV M,A
             {
                 state->memory[combine_two_bytes(state->h, state->l)] = state->a;
+                clock_cycles=7;
             } break;
         case 0x78: //^ MOV A,B
             {
                 state->a = state->b;
+                clock_cycles=5;
             } break;
         case 0x79: //^ MOV A,C
             {
                 state->a = state->c;
+                clock_cycles=5;
             } break;
         case 0x7A: //^ MOV A,D
             {
                 state->a = state->d;
+                clock_cycles=5;
             } break;
         case 0x7B: //^ MOV A,E
             {
                 state->a = state->e;
+                clock_cycles=5;
             } break;
         case 0x7C: //^ MOV A,H
             {
                 state->a = state->h;
+                clock_cycles=5;
             } break;
         case 0x7D: //^ MOV A,L
             {
                 state->a = state->l;
+                clock_cycles=5;
             } break;
         case 0x7E: //^ MOV A,M
             {
                 state->a = state->memory[combine_two_bytes(state->h, state->l)];
+                clock_cycles=7;
             } break;
         case 0x7F: //^ MOV A,A
             {
                 state->a = state->a;
+                clock_cycles=5;
             } break;
         case 0x80: //^ ADD B
             {
@@ -712,6 +894,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=4;
             } break;
         case 0x81: //^ ADD C
             {
@@ -720,6 +904,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=4;
             } break;
         case 0x82: //^ ADD D
             {
@@ -728,6 +914,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=4;
             } break;
         case 0x83: //^ ADD E
             {
@@ -736,6 +924,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=4;
             } break;
         case 0x84: //^ ADD H
             {
@@ -744,6 +934,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=4;
             } break;
         case 0x85: //^ ADD L
             {
@@ -752,6 +944,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=4;
             } break;
         case 0x86: //^ ADD M
             {
@@ -761,6 +955,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=7;
             } break;
         case 0x87: //^ ADD A
             {
@@ -769,6 +965,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=4;
             } break;
         case 0x88: //^ ADC B
             {
@@ -777,6 +975,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=4;
             } break;
         case 0x89: //^ ADC C
             {
@@ -785,6 +985,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=4;
             } break;
         case 0x8A: //^ ADC D
             {
@@ -793,6 +995,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=4;
             } break;
         case 0x8B: //^ ADC E
             {
@@ -801,6 +1005,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=4;
             } break;
         case 0x8C: //^ ADC H
             {
@@ -809,6 +1015,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=4;
             } break;
         case 0x8D: //^ ADC L
             {
@@ -817,6 +1025,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=4;
             } break;
         case 0x8E: //^ ADC M
             {
@@ -825,6 +1035,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=7;
             } break;
         case 0x8F: //^ ADC A
             {
@@ -833,6 +1045,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (result > 0xFF);
 
                 state->a=result;
+
+                clock_cycles=4;
             } break;
         case 0x90: //^ SUB B
             {
@@ -841,6 +1055,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0x91: //^ SUB C
             {
@@ -849,6 +1065,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0x92: //^ SUB D
             {
@@ -857,6 +1075,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0x93: //^ SUB E
             {
@@ -865,6 +1085,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0x94: //^ SUB H
             {
@@ -873,6 +1095,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0x95: //^ SUB L
             {
@@ -881,6 +1105,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0x96: //^ SUB M
             {
@@ -889,6 +1115,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=7;
             } break;
         case 0x97: //^ SUB A
             {
@@ -897,6 +1125,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0x98: //^ SBB B
             {
@@ -905,6 +1135,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+                
+                clock_cycles=4;
             } break;
         case 0x99: //^ SBB C
             {
@@ -913,6 +1145,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0x9A: //^ SBB D
             {
@@ -921,6 +1155,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0x9B: //^ SBB E
             {
@@ -929,6 +1165,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0x9C: //^ SBB H
             {
@@ -937,6 +1175,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0x9D: //^ SBB L
             {
@@ -945,6 +1185,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0x9E: //^ SBB M
             {
@@ -953,6 +1195,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=7;
             } break;
         case 0x9F: //^ SBB A
             {
@@ -961,6 +1205,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0xA0: //^ ANA B
             {
@@ -969,6 +1215,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0xA1: //^ ANA C
             {
@@ -977,6 +1225,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0xA2: //^ ANA D
             {
@@ -985,6 +1235,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0xA3: //^ ANA E
             {
@@ -993,6 +1245,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0xA4: //^ ANA H
             {
@@ -1001,6 +1255,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0xA5: //^ ANA L
             {
@@ -1009,6 +1265,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0xA6: //^ ANA M
             {
@@ -1017,6 +1275,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = 0;
 
                 state->a = result;
+
+                clock_cycles=7;
             } break;
         case 0xA7: //^ ANA A
             {
@@ -1025,6 +1285,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = 0;
 
                 state->a = result;
+
+                clock_cycles=4;
             } break;
         case 0xA8: //^ XRA B
             {
@@ -1032,7 +1294,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result;
+                
+                clock_cycles=4;
             } break;
         case 0xA9: //^ XRA C
             {
@@ -1040,7 +1304,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result;     
+                
+                clock_cycles=4;
             } break;
         case 0xAA: //^ XRA D
             {
@@ -1048,7 +1314,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result;    
+                
+                clock_cycles=4;
             } break;
         case 0xAB: //^ XRA E
             {
@@ -1056,7 +1324,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result;  
+                
+                clock_cycles=4;
             } break;
         case 0xAC: //^ XRA H
             {
@@ -1064,7 +1334,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result;  
+                
+                clock_cycles=4;
             } break;
         case 0xAD: //^ XRA L
             {
@@ -1072,7 +1344,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result;  
+                
+                clock_cycles=4;
             } break;
         case 0xAE: //^ XRA M
             {
@@ -1080,7 +1354,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result;  
+                
+                clock_cycles=7;
             } break;
         case 0xAF: //^ XRA A
             {
@@ -1088,7 +1364,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result;     
+                
+                clock_cycles=4;
             } break;
         case 0xB0: //^ ORA B
             {
@@ -1096,7 +1374,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result;   
+                
+                clock_cycles=4;
             } break;
         case 0xB1: //^ ORA C
             {
@@ -1104,7 +1384,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result; 
+                
+                clock_cycles=4;
             } break;
         case 0xB2: //^ ORA D
             {
@@ -1112,7 +1394,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result;      
+                
+                clock_cycles=4;
             } break;
         case 0xB3: //^ ORA E
             {
@@ -1120,7 +1404,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result; 
+                
+                clock_cycles=4;
             } break;
         case 0xB4: //^ ORA H
             {
@@ -1128,7 +1414,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result;   
+                
+                clock_cycles=4;
             } break;
         case 0xB5: //^ ORA L
             {
@@ -1136,7 +1424,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result;      
+                
+                clock_cycles=4;
             } break;
         case 0xB6: //^ ORA M
             {
@@ -1144,7 +1434,9 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result;   
+                
+                clock_cycles=7;
             } break;
         case 0xB7: //^ ORA A
             {
@@ -1152,55 +1444,73 @@ void emulate_i8080_instruction(State8080* state) {
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = 0;
 
-                state->a = result;                
+                state->a = result;   
+                
+                clock_cycles=4;
             } break;
         case 0xB8: //^ CMP B
             {
                 uint16_t result = (uint16_t) state->a - (uint16_t) state->b;
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
+
+                clock_cycles=4;
             } break;
         case 0xB9: //^ CMP C
             {
                 uint16_t result = (uint16_t) state->a - (uint16_t) state->c;
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
+
+                clock_cycles=4;
             } break;
         case 0xBA: //^ CMP D
             {
                 uint16_t result = (uint16_t) state->a - (uint16_t) state->d;
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
+
+                clock_cycles=4;
             } break;
         case 0xBB: //^ CMP E
             {
                 uint16_t result = (uint16_t) state->a - (uint16_t) state->e;
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
+
+                clock_cycles=4;
             } break;
         case 0xBC: //^ CMP H
             {
                 uint16_t result = (uint16_t) state->a - (uint16_t) state->h;
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
+
+                clock_cycles=4;
             } break;
         case 0xBD: //^ CMP L
             {
                 uint16_t result = (uint16_t) state->a - (uint16_t) state->l;
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
+
+                clock_cycles=4;
             } break;
         case 0xBE: //^ CMP M
             {
                 uint16_t result = (uint16_t) state->a - state->memory[combine_two_bytes(state->h, state->l)];
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
+
+                clock_cycles=7;
             } break;
         case 0xBF: //^ CMP A
             {
                 uint16_t result = (uint16_t) state->a - (uint16_t) state->a;
                 setZSP_Flags(&(state->cc), result);
                 state->cc.cy = ((result & 0xFF00) >> 8) != 0;
+
+                clock_cycles=4;
             } break;
         case 0xC0: //^ RNZ
             {
@@ -1209,11 +1519,19 @@ void emulate_i8080_instruction(State8080* state) {
                     uint8_t *pc_h = pc_l+1;
 
                     pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
+                    state->pc--;
+
+                    clock_cycles=11;
+                }
+                else {
+                    clock_cycles=5;
                 }
             } break;
         case 0xC1: //^ POP B
             {
                 pop_2bytes_from_stack(state->memory, &(state->sp), &(state->b), &(state->c));
+
+                clock_cycles=10;
             } break;
         case 0xC2: //^ JNZ
             { 
@@ -1227,6 +1545,8 @@ void emulate_i8080_instruction(State8080* state) {
                 else {
                     state->pc+=2;
                 }
+
+                clock_cycles=10;
             } break;
         case 0xC3: //^ JMP adr
             {
@@ -1235,11 +1555,31 @@ void emulate_i8080_instruction(State8080* state) {
                 uint16_t op_combined = combine_two_bytes(op2, op1);
                 state->pc = op_combined;
                 state->pc--;
+
+                clock_cycles=10;
             } break;
-        case 0xC4: unimplementedInstruction(*instr_addr); break;
+        case 0xC4: //^ CNZ
+            {
+                if (state->cc.z == 0) {
+                    uint16_t return_addr = state->pc+3;
+                    push_16bit_to_stack(state->memory, &(state->sp), return_addr);
+
+                    uint8_t op1 = get_operand(instr_addr, 1);
+                    uint8_t op2 = get_operand(instr_addr, 2);
+                    state->pc = combine_two_bytes(op2, op1);
+                    state->pc--;
+                    clock_cycles = 17;
+                }
+                else {
+                    state->pc+=2;
+                    clock_cycles = 11;
+                }
+            } break;
         case 0xC5: //^ PUSH B
             {
                 push_16bit_to_stack(state->memory, &(state->sp), combine_two_bytes(state->b, state->c));
+
+                clock_cycles=11;
             } break;
         case 0xC6: //^ ADI
             {
@@ -1251,8 +1591,19 @@ void emulate_i8080_instruction(State8080* state) {
                 state->a=result;
 
                 state->pc++;
+
+                clock_cycles=7;
             } break;
-        case 0xC7: unimplementedInstruction(*instr_addr); break;
+        case 0xC7:  //^ RST 0
+            {
+                uint16_t return_addr = state->pc+1;
+                push_16bit_to_stack(state->memory, &(state->sp), return_addr);
+
+                state->pc = 0x0;
+                state->pc--;
+
+                clock_cycles=11;
+            } break;
         case 0xC8: //^ RZ
             {
                 if (state->cc.z) {
@@ -1260,6 +1611,13 @@ void emulate_i8080_instruction(State8080* state) {
                     uint8_t *pc_h = pc_l+1;
 
                     pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
+                    state->pc--;
+
+                    clock_cycles=11;
+                }
+
+                else {
+                    clock_cycles=5;
                 }
             } break;
         case 0xC9: //^ RET
@@ -1268,6 +1626,9 @@ void emulate_i8080_instruction(State8080* state) {
                 uint8_t *pc_h = pc_l+1;
 
                 pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
+                state->pc--;
+
+                clock_cycles=10;
             } break;
         case 0xCA: //^ JZ
             { 
@@ -1281,18 +1642,39 @@ void emulate_i8080_instruction(State8080* state) {
                 else {
                     state->pc+=2;
                 }
+
+                clock_cycles=10;
             } break;
         case 0xCB: unimplementedInstruction(*instr_addr); break;
-        case 0xCC: unimplementedInstruction(*instr_addr); break;
+        case 0xCC: //^ CZ
+            {
+                if (state->cc.z == 1) {
+                    uint16_t return_addr = state->pc+3;
+                    push_16bit_to_stack(state->memory, &(state->sp), return_addr);
+
+                    uint8_t op1 = get_operand(instr_addr, 1);
+                    uint8_t op2 = get_operand(instr_addr, 2);
+                    state->pc = combine_two_bytes(op2, op1);
+                    state->pc--;
+                    clock_cycles = 17;
+                }
+                else {
+                    state->pc+=2;
+                    clock_cycles = 11;
+                }
+            } break;
+
         case 0xCD: //^ CALL
             {
-                uint16_t return_addr = state->pc+2;
+                uint16_t return_addr = state->pc+3;
                 push_16bit_to_stack(state->memory, &(state->sp), return_addr);
 
                 uint8_t op1 = get_operand(instr_addr, 1);
                 uint8_t op2 = get_operand(instr_addr, 2);
                 state->pc = combine_two_bytes(op2, op1);
                 state->pc--;
+
+                clock_cycles=17;
             } break;
         case 0xCE: //^ ACI 
             {   
@@ -1305,8 +1687,19 @@ void emulate_i8080_instruction(State8080* state) {
                 state->a = result;
 
                 state->pc++;
+
+                clock_cycles=7;
             } break;
-        case 0xCF: unimplementedInstruction(*instr_addr); break;
+        case 0xCF:  //^ RST 1
+            {
+                uint16_t return_addr = state->pc+1;
+                push_16bit_to_stack(state->memory, &(state->sp), return_addr);
+
+                state->pc = 0x08;
+                state->pc--;
+
+                clock_cycles=11;
+            } break;
         case 0xD0: //^ RNC
             {
                 if (!(state->cc.cy)) {
@@ -1314,11 +1707,20 @@ void emulate_i8080_instruction(State8080* state) {
                     uint8_t *pc_h = pc_l+1;
 
                     pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
+                    state->pc--;
+
+                    clock_cycles=11;
+                }
+                
+                else {
+                    clock_cycles=5;
                 }
             } break;
         case 0xD1: //^ POP D
             {
                 pop_2bytes_from_stack(state->memory, &(state->sp), &(state->d), &(state->e));
+
+                clock_cycles=10;
             } break;
         case 0xD2: //^ JNC
             {
@@ -1332,6 +1734,8 @@ void emulate_i8080_instruction(State8080* state) {
                 else {
                     state->pc+=2;
                 }
+
+                clock_cycles=10;
             } break;
         case 0xD3: //^ OUT
             {   
@@ -1339,11 +1743,31 @@ void emulate_i8080_instruction(State8080* state) {
                 state->io_bus.io_ports[op].inputed_data = state->a;
 
                 state->pc++;
+
+                clock_cycles=10;
             } break;
-        case 0xD4: unimplementedInstruction(*instr_addr); break;
+        case 0xD4: //^ CNC
+            {
+                if (state->cc.cy == 0) {
+                    uint16_t return_addr = state->pc+3;
+                    push_16bit_to_stack(state->memory, &(state->sp), return_addr);
+
+                    uint8_t op1 = get_operand(instr_addr, 1);
+                    uint8_t op2 = get_operand(instr_addr, 2);
+                    state->pc = combine_two_bytes(op2, op1);
+                    state->pc--;
+                    clock_cycles = 17;
+                }
+                else {
+                    state->pc+=2;
+                    clock_cycles = 11;
+                }
+            } break;
         case 0xD5: //^ PUSH D
             {
                 push_16bit_to_stack(state->memory, &(state->sp), combine_two_bytes(state->d, state->e));
+
+                clock_cycles=11;
             } break;
         case 0xD6: //^ SUI 
             {
@@ -1356,14 +1780,32 @@ void emulate_i8080_instruction(State8080* state) {
                 state->a = result;
 
                 state->pc++;
+
+                clock_cycles=7;
             } break;
-        case 0xD7: unimplementedInstruction(*instr_addr); break;
+        case 0xD7:  //^ RST 2
+            {
+                uint16_t return_addr = state->pc+1;
+                push_16bit_to_stack(state->memory, &(state->sp), return_addr);
+
+                state->pc = 0x10;
+                state->pc--;
+
+                clock_cycles=11;
+            } break;
         case 0xD8: //^ RC
             {
                 if (state->cc.cy) {
                     uint8_t *pc_l = ((uint8_t *) &(state->pc));
                     uint8_t *pc_h = pc_l+1;
-                pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
+                    pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
+                    state->pc--;
+
+                    clock_cycles=11;
+                }
+
+                else {
+                    clock_cycles=5;
                 }
             } break;
         case 0xD9: unimplementedInstruction(*instr_addr); break;
@@ -1379,6 +1821,8 @@ void emulate_i8080_instruction(State8080* state) {
                 else {
                     state->pc+=2;
                 }
+
+                clock_cycles=10;
             } break;
         case 0xDB: //^ IN d8
             {
@@ -1386,15 +1830,41 @@ void emulate_i8080_instruction(State8080* state) {
                 state->a = state->io_bus.io_ports[op].outputed_data;
 
                 state->pc++;
+
+                clock_cycles=10;
             } break;
         case 0xDC: unimplementedInstruction(*instr_addr); break;
         case 0xDD: unimplementedInstruction(*instr_addr); break;
-        case 0xDE: unimplementedInstruction(*instr_addr); break;
-        case 0xDF: unimplementedInstruction(*instr_addr); break;
+        case 0xDE: //^ SBI D8
+            {   
+                uint8_t op = get_operand(instr_addr, 1);
+                uint16_t result = state->a - op - state->cc.cy;
+                
+                setZSP_Flags(&(state->cc), result);
+                state->cc.cy = (result&0xFF00)>>8 != 0;
+
+                state->a = result;
+                
+                state->pc++;
+
+                clock_cycles = 7;
+            } break;
+        case 0xDF: //^ RST 3
+            {
+                uint16_t return_addr = state->pc+1;
+                push_16bit_to_stack(state->memory, &(state->sp), return_addr);
+
+                state->pc = 0x18;
+                state->pc--;
+
+                clock_cycles=11;
+            } break;
         case 0xE0: unimplementedInstruction(*instr_addr); break;
         case 0xE1: //^ POP H
             {
                 pop_2bytes_from_stack(state->memory, &(state->sp), &(state->h), &(state->l));
+
+                clock_cycles=10;
             } break;
         case 0xE2: //^ JPO
             {
@@ -1408,6 +1878,8 @@ void emulate_i8080_instruction(State8080* state) {
                 else {
                     state->pc+=2;
                 }
+
+                clock_cycles=10;
             } break;
         case 0xE3: //^ XTHL
             {   
@@ -1420,11 +1892,15 @@ void emulate_i8080_instruction(State8080* state) {
                 intermediate = state->memory[state->sp+1];
                 state->memory[state->sp+1] = state->h;
                 state->h = intermediate;
+
+                clock_cycles=18;
             } break;
         case 0xE4: unimplementedInstruction(*instr_addr); break;
         case 0xE5: //^ PUSH H
             {
                 push_16bit_to_stack(state->memory, &(state->sp), combine_two_bytes(state->h, state->l));
+
+                clock_cycles=11;
             } break;
         case 0xE6: //^ ANI
             {
@@ -1438,10 +1914,26 @@ void emulate_i8080_instruction(State8080* state) {
                 
                 state->pc++;
 
+                clock_cycles=7;
             } break;
-        case 0xE7: unimplementedInstruction(*instr_addr); break;
+        case 0xE7:  //^ RST 4
+            {
+                uint16_t return_addr = state->pc+1;
+                push_16bit_to_stack(state->memory, &(state->sp), return_addr);
+
+                state->pc = 0x20;
+                state->pc--;
+
+                clock_cycles=11;
+            } break;
         case 0xE8: unimplementedInstruction(*instr_addr); break;
-        case 0xE9: unimplementedInstruction(*instr_addr); break;
+        case 0xE9: //^ PCHL
+            {
+                state->pc = combine_two_bytes(state->h, state->l);
+                state->pc--;
+
+                clock_cycles = 5;
+            } break;
         case 0xEA: //^ JPE
             {
                 if (state->cc.p != 0) {
@@ -1454,6 +1946,8 @@ void emulate_i8080_instruction(State8080* state) {
                 else {
                     state->pc+=2;
                 }
+
+                clock_cycles=10;
             } break;
         case 0xEB: //^ XCHG
             {
@@ -1464,11 +1958,22 @@ void emulate_i8080_instruction(State8080* state) {
                 temp = state->l;
                 state->l = state->e;
                 state->e = temp;
+
+                clock_cycles=4;
             } break;
         case 0xEC: unimplementedInstruction(*instr_addr); break;
         case 0xED: unimplementedInstruction(*instr_addr); break;
         case 0xEE: unimplementedInstruction(*instr_addr); break;
-        case 0xEF: unimplementedInstruction(*instr_addr); break;
+        case 0xEF:  //^ RST 5
+            {
+                uint16_t return_addr = state->pc+1;
+                push_16bit_to_stack(state->memory, &(state->sp), return_addr);
+
+                state->pc = 0x28;
+                state->pc--;
+
+                clock_cycles=11;
+            } break;
         case 0xF0: unimplementedInstruction(*instr_addr); break;
         case 0xF1: //^ POP PSW
             {
@@ -1481,6 +1986,8 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.ac = (flags_layout<<3 & 0x80)!=0;
                 state->cc.p = (flags_layout<<5 & 0x80)!=0;
                 state->cc.cy = (flags_layout<<7 & 0x80)!=0;
+
+                clock_cycles=10;
             } break;
         case 0xF2: //^ JP
             {
@@ -1494,10 +2001,14 @@ void emulate_i8080_instruction(State8080* state) {
                 else {
                     state->pc+=2;
                 }
+
+                clock_cycles=10;
             } break;
         case 0xF3: //^ DI
             {
                 state->interrupt_bus.interrupt_enabled=0;
+
+                clock_cycles=4;
             } break;
         case 0xF4: unimplementedInstruction(*instr_addr); break;
         case 0xF5: //^ PUSH PSW
@@ -1505,6 +2016,8 @@ void emulate_i8080_instruction(State8080* state) {
                 uint8_t flags_layout = ( (state->cc.s << 7) | (state->cc.z << 6) | (state->cc.ac << 4) | (state->cc.p << 2) | 0x02 | (state->cc.cy));
                 
                 push_16bit_to_stack(state->memory, &(state->sp), combine_two_bytes(state->a, flags_layout));
+
+                clock_cycles=11;
             } break;
         case 0xF6://^ ORI D8
             {
@@ -1516,8 +2029,19 @@ void emulate_i8080_instruction(State8080* state) {
                 state->a = result;
 
                 state->pc++;
+
+                clock_cycles=7;
             } break;
-        case 0xF7: unimplementedInstruction(*instr_addr); break;
+        case 0xF7:  //^ RST 6
+            {
+                uint16_t return_addr = state->pc+1;
+                push_16bit_to_stack(state->memory, &(state->sp), return_addr);
+
+                state->pc = 0x30;
+                state->pc--;
+
+                clock_cycles=11;                
+            } break;
         case 0xF8: //^ RM
             {
                 if (state->cc.s) {
@@ -1525,11 +2049,20 @@ void emulate_i8080_instruction(State8080* state) {
                     uint8_t *pc_h = pc_l+1;
 
                     pop_2bytes_from_stack(state->memory, &(state->sp), pc_h, pc_l);
+                    state->pc--;
+
+                    clock_cycles=11;
+                }
+
+                else {
+                    clock_cycles=5;
                 }
             } break;
         case 0xF9: //^ SPHL
             {
                 state->sp = combine_two_bytes(state->h, state->l);
+
+                clock_cycles=5;
             } break;
         case 0xFA: //^ JM
             {
@@ -1543,10 +2076,14 @@ void emulate_i8080_instruction(State8080* state) {
                 else {
                     state->pc+=2;
                 }
+
+                clock_cycles=10;
             } break;
         case 0xFB: //^ EI
             {
                 state->interrupt_bus.interrupt_enabled=1;
+
+                clock_cycles=4;
             } break;
         case 0xFC: unimplementedInstruction(*instr_addr); break;
         case 0xFD: unimplementedInstruction(*instr_addr); break;
@@ -1558,19 +2095,25 @@ void emulate_i8080_instruction(State8080* state) {
                 state->cc.cy = (state->a < op);
 
                 state->pc++;
+
+                clock_cycles=7;
             } break;
         case 0xFF: //^ RST 7
             {
-                uint16_t return_addr = state->pc;
+                uint16_t return_addr = state->pc+1;
                 push_16bit_to_stack(state->memory, &(state->sp), return_addr);
 
                 state->pc = 0x38;
                 state->pc--;
+
+                clock_cycles=11;
             } break;
     }
     
     state->pc++;
+
+    return clock_cycles;
 }
-void cpu_emulation_handler(State8080* state) {
-    emulate_i8080_instruction(state);
+void cpu_emulation_handler(State8080* state, unsigned long long *overall_clock_cycles) {
+    *overall_clock_cycles += emulate_i8080_instruction(state);
 }

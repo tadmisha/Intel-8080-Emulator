@@ -34,9 +34,10 @@ int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - a
     free(binary_file_buffer);
     //! ---
 
+    long long overall_clock_cycles = 0;
     int i=0;
     while (state->pc<=fsize) {
-        cpu_emulation_handler(state);
+        cpu_emulation_handler(state, &overall_clock_cycles);
         print_cpu_state(state, i);
 
         i++;

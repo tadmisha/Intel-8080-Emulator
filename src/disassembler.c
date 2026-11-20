@@ -2,8 +2,8 @@
 
 #include <stdio.h>
 
-int disassemble_i8080_instruction(unsigned char *codebuffer, int pc) { //? codebuffer - a pointer to the ROM; pc - program counter
-    unsigned char *instr_addr = &codebuffer[pc]; //? Address of the current instruction
+int disassemble_i8080_instruction(const unsigned char *codebuffer, const int pc) { //? codebuffer - a pointer to the ROM; pc - program counter
+    const unsigned char *instr_addr = &codebuffer[pc]; //? Address of the current instruction
     int instr_l = 1; //? Instruction length, 1 by default
     printf("Machine Code - 0x%x\nDisassembled - ", *instr_addr);
     switch (*instr_addr) { //? All the machine code options
