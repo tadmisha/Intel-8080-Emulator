@@ -24,7 +24,7 @@ void print_display(const uint8_t *memory) { //? Prints the space invaders displa
     for (int y8=0; y8<224; y8++) {
         for (int x8=0; x8<32; x8++) {
             for (int i=0; i<8; i++) {
-                printf("%d", 1 ? ((memory[0x2400+y8*32+x8] << i >> 7) & 1) == 1 : 0);
+                printf("%s", ((memory[0x2400+y8*32+x8] << i >> 7) & 1) == 1 ? "□" : "■");
             }
         }
         printf("\n");
