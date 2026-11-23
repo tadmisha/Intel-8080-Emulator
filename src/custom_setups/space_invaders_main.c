@@ -10,8 +10,8 @@
 
 #define HALF_FRAME_CYCLES 16666
 #define SCALING 3
-#define RESOLUTION_X 256
-#define RESOLUTION_Y 224
+#define RESOLUTION_Y 256
+#define RESOLUTION_X 224
 
 //! Shift register implementation
 typedef struct Shift_Register {
@@ -33,17 +33,29 @@ static inline void write_into_shift_register(Shift_Register *shift_register, uin
 }
 
 //! ---
-void print_display(const uint8_t *memory) { //? Prints the space invaders display in the terminal
+void update_display(const uint8_t *memory) { //? Updates the space invaders display
     //& image is at $2400-$3fff. 256x224 pixels
     BeginDrawing();
     ClearBackground(BLACK);
+
+    Color pixel_color;
+    int actual_x;
+    int actual_y;
+
     int x;
-    for (int y=0; y<224; y++) {
-        for (int x8=0; x8<32; x8++) {
+    for (int y=0; y<RESOLUTION_X; y++) {
+        for (int x8=0; x8<RESOLUTION_Y/8; x8++) {
             for (int i=0; i<8; i++) {
                 x=x8*8+i;
-                if (((memory[0x2400+(224*256/8)-(y*(256/8)+x8)] << i >> 7) & 1) == 1) {
-                    DrawRectangle(x*SCALING, y*SCALING, SCALING, SCALING, WHITE);
+                if (((memory[0x2400+(224*256/8)-1-(y*(256/8)+x8)] << i >> 7) & 1) == 1) {
+                    actual_x = (RESOLUTION_X-1-y)*SCALING;
+                    actual_y = x*SCALING;
+                    if (actual_y>=32*SCALING && actual_y<64*SCALING) { pixel_color = RED; }
+                    else if (actual_y>=184*SCALING && actual_y<240*SCALING) { pixel_color = GREEN; }
+                    else if (actual_y>=240*SCALING && actual_x<136*SCALING) { pixel_color = GREEN; }
+                    else { pixel_color = WHITE; }
+
+                    DrawRectangle(actual_x, actual_y, SCALING, SCALING, pixel_color);
                 }
             }
         }
@@ -58,14 +70,14 @@ void space_invaders_video_interrupts_handler(State8080 *state, const unsigned lo
 
     if (prev_halves_passed != halves_passed) {
         switch (halves_passed%2){
-            case 1: 
+            case 1: //? Mid-screen interrupt (draws top half)
                 {
                     generateInterrupt(&(state->interrupt_bus), 0xCF); //* 0xCF = RST 1
-                    print_display(state->memory);
                     break;
                 }
-            case 0:
-                {
+            case 0: //? End-of-frame interrupt (draws bottom half)
+                {   
+                    update_display(state->memory);
                     generateInterrupt(&(state->interrupt_bus), 0xD7); //* 0xD7 = RST 2
                     break;
                 }
@@ -102,7 +114,7 @@ int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - a
     //! ---
     
     //! Window handling
-    InitWindow(RESOLUTION_Y * SCALING, RESOLUTION_X * SCALING, "Space Invaders Intel 8080");
+    InitWindow(RESOLUTION_X * SCALING, RESOLUTION_Y * SCALING, "Space Invaders Intel 8080");
     SetTargetFPS(60);
 
     //! File reading 
@@ -124,7 +136,7 @@ int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - a
 
     //! Main loop
     int i=0;
-    while (state->pc<=fsize) {
+    while (state->pc<=fsize && !WindowShouldClose()) {
         previous_overall_clock_cycles = overall_clock_cycles;
 
         cpu_emulation_handler(state, &overall_clock_cycles);
@@ -134,7 +146,8 @@ int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - a
         i++;
     }
     //! ---
-    
+
+    CloseWindow();
     free(state->memory);
 } 
 
