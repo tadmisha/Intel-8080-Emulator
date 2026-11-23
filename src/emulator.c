@@ -1737,10 +1737,13 @@ unsigned int emulate_i8080_instruction(State8080* state) {
 
                 clock_cycles=10;
             } break;
-        case 0xD3: //^ OUT
+        case 0xD3: //^ OUT D8
             {   
                 uint8_t op = get_operand(instr_addr, 1);
-                state->io_bus.io_ports[op].inputed_data = state->a;
+                state->io_bus.io_ports[op].write_data = state->a;
+
+                state->io_bus.did_write = 1;
+                state->io_bus.used_port_id = op;
 
                 state->pc++;
 
@@ -1824,10 +1827,13 @@ unsigned int emulate_i8080_instruction(State8080* state) {
 
                 clock_cycles=10;
             } break;
-        case 0xDB: //^ IN d8
+        case 0xDB: //^ IN D8
             {
                 uint8_t op = get_operand(instr_addr, 1);
-                state->a = state->io_bus.io_ports[op].outputed_data;
+                state->a = state->io_bus.io_ports[op].read_data;
+
+                state->io_bus.did_read = 1;
+                state->io_bus.used_port_id = op;
 
                 state->pc++;
 

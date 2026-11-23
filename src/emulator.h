@@ -14,8 +14,8 @@ typedef struct ConditionCodes { //? Intel 8080 flags
 } ConditionCodes;
 
 typedef struct IO_Port { //? An IO port storage
-    uint8_t inputed_data;
-    uint8_t outputed_data;
+    uint8_t write_data; //? CPU writes to it (io port reads from it)
+    uint8_t read_data; //? CPU reads from it (io port writes into it)
 } IO_Port;
 
 typedef struct IO_Bus { //? The collection of ports with the logic that enables connecting the CPU emulator to the rest of the emulated machine
@@ -25,7 +25,7 @@ typedef struct IO_Bus { //? The collection of ports with the logic that enables 
     uint8_t used_port_id; //? id of the port that sth has inputted/outputed in
 } IO_Bus;
 
-typedef struct Interrupt_Bus {
+typedef struct Interrupt_Bus { //? Bus responsible for interrupts
     uint8_t interrupt_enabled;
     uint8_t did_interrupt;
     uint8_t interrupt_operand;
