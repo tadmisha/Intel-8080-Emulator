@@ -29,6 +29,7 @@ int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - a
 
     State8080 *state;
     initializeI8080(&state);
+    state->pc = load_program_addr;
 
     memcpy(state->memory+load_program_addr, binary_file_buffer, fsize); //? Loads the binary into the state memory
     free(binary_file_buffer);
@@ -36,7 +37,7 @@ int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - a
 
     unsigned long long overall_clock_cycles = 0;
     int i=0;
-    while (state->pc<=fsize) {
+    while (state->pc<=(fsize+load_program_addr)) {
         cpu_emulation_handler(state, &overall_clock_cycles);
         print_cpu_state(state, i);
 
@@ -44,6 +45,7 @@ int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - a
     }
     
     free(state->memory);
+    free(state);
 
     return 0;
 } 

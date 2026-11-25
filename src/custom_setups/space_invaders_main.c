@@ -151,7 +151,7 @@ void space_invaders_input_handler(IO_Bus *io_bus) {
 
 static inline void time_fix_handler(long long overall_clock_cycles, long long i, double start_time) {
     if (i%NUMBER_OF_LOOPS_BEFORE_TIME_FIX == 0) {
-            WaitTime(((float) overall_clock_cycles)/INTEL_8080_CLOCK-(GetTime()-start_time));
+            WaitTime(((double) overall_clock_cycles)/INTEL_8080_CLOCK-(GetTime()-start_time));
     }
 }
 
@@ -215,6 +215,7 @@ int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - a
 
     CloseWindow();
     free(state->memory);
+    free(state);
 
     printf("\nComplete.\n");
 
