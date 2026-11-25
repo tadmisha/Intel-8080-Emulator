@@ -158,7 +158,7 @@ static inline void time_fix_handler(long long overall_clock_cycles, long long i,
 int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - address in ram where to load the program to. 0 by default
     //! Argument handling
     if (argc == 1) {
-        printf("Arguments not provided.");
+        printf("Arguments not provided.\n");
         exit(1);
     }
 
@@ -169,7 +169,7 @@ int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - a
     //SetTargetFPS(60); //& Limits CPU speed with FPS for now, will migrate into in-loop limiter using a timer later.
     printf("\nComplete.\n\n");
     //! File reading 
-    printf("Initial ROM and emulator setup.\n\n");
+    printf("Initial ROM and emulator setup.\n");
     uint8_t *binary_file_buffer;
     int fsize = read_binary_file(argv[1], &binary_file_buffer);
 
@@ -188,7 +188,7 @@ int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - a
 
     unsigned long long previous_loop_overall_clock_cycles = 0;
     unsigned long long overall_clock_cycles = 0;
-    printf("Complete.\n\n\n");
+    printf("Complete.\n\n");
     //! ---
 
     double start_time = GetTime();
