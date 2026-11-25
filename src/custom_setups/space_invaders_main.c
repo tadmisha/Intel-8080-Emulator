@@ -8,8 +8,23 @@
 #include <stdio.h>
 #include <string.h>
 
+//! CONFIGURABLE SETTINGS
+#define SCALING 3 //& window scaling
+#define COIN_INSERT_KEY KEY_C
+#define START_WITH_ONE_PLAYER_KEY KEY_ONE
+#define START_WITH_TWO_PLAYERS_KEY KEY_TWO
+#define PLAYER_ONE_SHOOT_KEY KEY_S
+#define PLAYER_ONE_LEFT_KEY KEY_A
+#define PLAYER_ONE_RIGHT_KEY KEY_D
+#define PLAYER_TWO_SHOOT_KEY KEY_K
+#define PLAYER_TWO_LEFT_KEY KEY_J
+#define PLAYER_TWO_RIGHT_KEY KEY_L
+#define SHOOT_KEY KEY_SPACE
+#define LEFT_KEY KEY_LEFT
+#define RIGHT_KEY KEY_RIGHT
+//! ---
+
 #define HALF_FRAME_CYCLES 16666
-#define SCALING 5
 #define RESOLUTION_Y 256
 #define RESOLUTION_X 224
 
@@ -104,25 +119,24 @@ void space_invaders_shift_register_io_handler(IO_Bus *io_bus, Shift_Register *sh
     }
 }
 
-
 void space_invaders_input_handler(IO_Bus *io_bus) {
     uint8_t port_data_0 = 0x0E; //* bits 1,2,3 always 1
     uint8_t port_data_1 = 0x08; //* bit 3 always 1
     uint8_t port_data_2 = 0x00;
 
-    if (IsKeyDown(KEY_C)) { port_data_1 |= 0x01; } //^ port 1 bit 0; Coin insert
-    if (IsKeyDown(KEY_TWO)) { port_data_1 |= 0x02; } //^ port 1 bit 1; Player 2 start
-    if (IsKeyDown(KEY_ONE)) { port_data_1 |= 0x04; } //^ port 1 bit 3; Player 1 start
-    if (IsKeyDown(KEY_S)) { port_data_1 |= 0x10; } //^ port 1 bit 4; Player 1 shoot
-    if (IsKeyDown(KEY_A)) { port_data_1 |= 0x20; } //^ port 1 bit 5; Player 1 left
-    if (IsKeyDown(KEY_D)) { port_data_1 |= 0x40; } //^ port 1 bit 6; Player 1 right
-    if (IsKeyDown(KEY_K)) { port_data_2 |= 0x10; } //^ port 2 bit 4; Player 2 shoot
-    if (IsKeyDown(KEY_J)) { port_data_2 |= 0x20; } //^ port 2 bit 5; Player 2 left
-    if (IsKeyDown(KEY_L)) { port_data_2 |= 0x40; } //^ port 2 bit 6; Player 2 right
+    if (IsKeyDown(COIN_INSERT_KEY)) { port_data_1 |= 0x01; } //^ port 1 bit 0; Coin insert
+    if (IsKeyDown(START_WITH_ONE_PLAYER_KEY)) { port_data_1 |= 0x02; } //^ port 1 bit 1; Player 2 start
+    if (IsKeyDown(START_WITH_TWO_PLAYERS_KEY)) { port_data_1 |= 0x04; } //^ port 1 bit 3; Player 1 start
+    if (IsKeyDown(PLAYER_ONE_SHOOT_KEY)) { port_data_1 |= 0x10; } //^ port 1 bit 4; Player 1 shoot
+    if (IsKeyDown(PLAYER_ONE_LEFT_KEY)) { port_data_1 |= 0x20; } //^ port 1 bit 5; Player 1 left
+    if (IsKeyDown(PLAYER_ONE_RIGHT_KEY)) { port_data_1 |= 0x40; } //^ port 1 bit 6; Player 1 right
+    if (IsKeyDown(PLAYER_TWO_SHOOT_KEY)) { port_data_2 |= 0x10; } //^ port 2 bit 4; Player 2 shoot
+    if (IsKeyDown(PLAYER_TWO_LEFT_KEY)) { port_data_2 |= 0x20; } //^ port 2 bit 5; Player 2 left
+    if (IsKeyDown(PLAYER_TWO_RIGHT_KEY)) { port_data_2 |= 0x40; } //^ port 2 bit 6; Player 2 right
     //& this three are named like this in the hardware breakdown, but they don't really do anything somehow
-    if (IsKeyDown(KEY_SPACE)) { port_data_0 |= 0x10; } //^ port 0 bit 4; Shoot
-    if (IsKeyDown(KEY_LEFT)) { port_data_0 |= 0x20; } //^ port 0 bit 5; Left
-    if (IsKeyDown(KEY_RIGHT)) { port_data_0 |= 0x40; } //^ port 0 bit 6; Right
+    if (IsKeyDown(SHOOT_KEY)) { port_data_0 |= 0x10; } //^ port 0 bit 4; Shoot
+    if (IsKeyDown(LEFT_KEY)) { port_data_0 |= 0x20; } //^ port 0 bit 5; Left
+    if (IsKeyDown(RIGHT_KEY)) { port_data_0 |= 0x40; } //^ port 0 bit 6; Right
     //& ---
 
     io_bus->io_ports[0].read_data = port_data_0;
@@ -134,18 +148,19 @@ void space_invaders_input_handler(IO_Bus *io_bus) {
 
 int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - address in ram where to load the program to. 0 by default
     //! Argument handling
-    
     if (argc == 1) {
         printf("Arguments not provided.");
         exit(1);
     }
 
     //! ---
-    
     //! Window handling
+    printf("Initial window setup.\n\n");
     InitWindow(RESOLUTION_X * SCALING, RESOLUTION_Y * SCALING, "Space Invaders Intel 8080");
     SetTargetFPS(60); //& Limits CPU speed with FPS for now, will migrate into in-loop limiter using a timer later.
+    printf("\nComplete.\n\n");
     //! File reading 
+    printf("Initial ROM and emulator setup.\n\n");
     uint8_t *binary_file_buffer;
     int fsize = read_binary_file(argv[1], &binary_file_buffer);
 
@@ -154,13 +169,20 @@ int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - a
 
     memcpy(state->memory, binary_file_buffer, fsize); //? Loads the binary into the state memory
     free(binary_file_buffer);
+    printf("Complete.\n\n");
     //! ---
-
+    
+    //! Shift register handling
+    printf("Initial shift register setup.\n");
     Shift_Register shift_register;
     initialize_shift_register(&shift_register);
 
     unsigned long long previous_overall_clock_cycles = 0;
     unsigned long long overall_clock_cycles = 0;
+    printf("Complete.\n\n\n");
+    //! ---
+
+    printf("Main loop start.\n");
 
     //! Main loop
     //long long i=0;
@@ -176,8 +198,15 @@ int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - a
     }
     //! ---
 
+    printf("Main loop end.\n\n");
+
+    printf("Closing window, freeing memory\n\n");
+
     CloseWindow();
     free(state->memory);
+
+    printf("\nComplete.\n");
+
 } 
 
 
