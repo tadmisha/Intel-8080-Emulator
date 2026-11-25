@@ -2120,6 +2120,7 @@ unsigned int emulate_i8080_instruction(State8080* state) {
 
     return clock_cycles;
 }
+
 void cpu_emulation_handler(State8080* state, unsigned long long *overall_clock_cycles) {
     *overall_clock_cycles += emulate_i8080_instruction(state);
 }
