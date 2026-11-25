@@ -1,15 +1,6 @@
-#include "../emulator.h"
-#include "../utils.h"
-
-#include "raylib.h"
-
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-
 //! CONFIGURABLE SETTINGS
-#define SCALING 3 //& window scaling
+#define SCALING 3 //& window scaling (native resolution is 224x256)
+//& Controls
 #define COIN_INSERT_KEY KEY_C
 #define START_WITH_ONE_PLAYER_KEY KEY_ONE
 #define START_WITH_TWO_PLAYERS_KEY KEY_TWO
@@ -22,11 +13,24 @@
 #define SHOOT_KEY KEY_SPACE
 #define LEFT_KEY KEY_LEFT
 #define RIGHT_KEY KEY_RIGHT
+//& ---
+#define NUMBER_OF_LOOPS_BEFORE_TIME_FIX 2000
 //! ---
 
+#include "../emulator.h"
+#include "../utils.h"
+
+#include "raylib.h"
+
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+#define INTEL_8080_CLOCK 2000000
 #define HALF_FRAME_CYCLES 16666
-#define RESOLUTION_Y 256
 #define RESOLUTION_X 224
+#define RESOLUTION_Y 256
 
 //! Shift register implementation
 typedef struct Shift_Register {
@@ -125,8 +129,8 @@ void space_invaders_input_handler(IO_Bus *io_bus) {
     uint8_t port_data_2 = 0x00;
 
     if (IsKeyDown(COIN_INSERT_KEY)) { port_data_1 |= 0x01; } //^ port 1 bit 0; Coin insert
-    if (IsKeyDown(START_WITH_ONE_PLAYER_KEY)) { port_data_1 |= 0x02; } //^ port 1 bit 1; Player 2 start
-    if (IsKeyDown(START_WITH_TWO_PLAYERS_KEY)) { port_data_1 |= 0x04; } //^ port 1 bit 3; Player 1 start
+    if (IsKeyDown(START_WITH_TWO_PLAYERS_KEY)) { port_data_1 |= 0x02; } //^ port 1 bit 1; Player 2 start
+    if (IsKeyDown(START_WITH_ONE_PLAYER_KEY)) { port_data_1 |= 0x04; } //^ port 1 bit 3; Player 1 start
     if (IsKeyDown(PLAYER_ONE_SHOOT_KEY)) { port_data_1 |= 0x10; } //^ port 1 bit 4; Player 1 shoot
     if (IsKeyDown(PLAYER_ONE_LEFT_KEY)) { port_data_1 |= 0x20; } //^ port 1 bit 5; Player 1 left
     if (IsKeyDown(PLAYER_ONE_RIGHT_KEY)) { port_data_1 |= 0x40; } //^ port 1 bit 6; Player 1 right
@@ -145,6 +149,11 @@ void space_invaders_input_handler(IO_Bus *io_bus) {
 
 }
 
+static inline void time_fix_handler(long long overall_clock_cycles, long long i, double start_time) {
+    if (i%NUMBER_OF_LOOPS_BEFORE_TIME_FIX == 0) {
+            WaitTime(((float) overall_clock_cycles)/INTEL_8080_CLOCK-(GetTime()-start_time));
+    }
+}
 
 int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - address in ram where to load the program to. 0 by default
     //! Argument handling
@@ -157,7 +166,7 @@ int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - a
     //! Window handling
     printf("Initial window setup.\n\n");
     InitWindow(RESOLUTION_X * SCALING, RESOLUTION_Y * SCALING, "Space Invaders Intel 8080");
-    SetTargetFPS(60); //& Limits CPU speed with FPS for now, will migrate into in-loop limiter using a timer later.
+    //SetTargetFPS(60); //& Limits CPU speed with FPS for now, will migrate into in-loop limiter using a timer later.
     printf("\nComplete.\n\n");
     //! File reading 
     printf("Initial ROM and emulator setup.\n\n");
@@ -177,24 +186,26 @@ int main(int argc, char* argv[]) { //* arg 1 - filename of the binary; arg 2 - a
     Shift_Register shift_register;
     initialize_shift_register(&shift_register);
 
-    unsigned long long previous_overall_clock_cycles = 0;
+    unsigned long long previous_loop_overall_clock_cycles = 0;
     unsigned long long overall_clock_cycles = 0;
     printf("Complete.\n\n\n");
     //! ---
 
-    printf("Main loop start.\n");
+    double start_time = GetTime();
 
+    printf("Main loop start.\n");
     //! Main loop
-    //long long i=0;
+    long long i=0;
     while (state->pc<=fsize && !WindowShouldClose()) {
-        previous_overall_clock_cycles = overall_clock_cycles;
+        previous_loop_overall_clock_cycles = overall_clock_cycles;
 
         cpu_emulation_handler(state, &overall_clock_cycles);
-        space_invaders_video_interrupts_handler(state, overall_clock_cycles, previous_overall_clock_cycles);
+        space_invaders_video_interrupts_handler(state, overall_clock_cycles, previous_loop_overall_clock_cycles);
         space_invaders_shift_register_io_handler(&(state->io_bus), &shift_register);
         space_invaders_input_handler(&(state->io_bus));
+        time_fix_handler(overall_clock_cycles, i, start_time);
 
-        //i++;
+        i++;
     }
     //! ---
 
